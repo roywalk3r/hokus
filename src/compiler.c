@@ -169,7 +169,14 @@ static void emitReturn(Parser *p) {
 }
 
 static int makeConstant(Parser *p, Value value) {
-    int constant = addConstant(currentChunk(), value);
+    Chunk *chunk = currentChunk();
+    /* reuse an existing identical string/number constant instead of duplicating */
+    if (IS_STRING(value) || IS_NUMBER(value)) {
+        for (int i = 0; i < chunk->constants.count; i++) {
+            if (valuesEqual(chunk->constants.values[i], value)) return i;
+        }
+    }
+    int constant = addConstant(chunk, value);
     if (constant > UINT16_MAX) {
         error(p, "Too many constants in one chunk.");
         return 0;
