@@ -55,6 +55,7 @@ typedef struct ObjClosure ObjClosure;
 
 struct Obj {
     ObjType type;
+    bool isMarked;
     Obj *next;
 };
 

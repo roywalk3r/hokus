@@ -1,6 +1,6 @@
 CC      ?= cc
 CFLAGS  ?= -std=c11 -O2 -Wall -Wextra
-SRC_CORE = src/chunk.c src/value.c src/table.c src/lexer.c src/compiler.c src/vm.c
+SRC_CORE = src/chunk.c src/value.c src/table.c src/lexer.c src/compiler.c src/vm.c src/gc.c
 
 BIN = bin/hokus
 

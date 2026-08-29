@@ -1,5 +1,8 @@
 #include "vm.h"
 #include "compiler.h"
+#include "gc.h"
+
+extern VM *hkActiveVM; /* gc.c gate: collections only mid-execution */
 
 HkEmitFn hkEmit;
 
@@ -21,6 +24,7 @@ void resetVMStack(VM *vm) {
 }
 
 void freeVM(VM *vm) {
+    gcFreeAll();
     freeTable(&vm->globals);
 }
 
@@ -295,5 +299,8 @@ InterpretResult interpret(VM *vm, const char *source, int sourceLen) {
 
     /* Function chunks stay alive for the VM's lifetime: globals hold
        ObjFunctions pointing into them. Freed with the VM in freeVM(). */
-    return run(vm);
+    hkActiveVM = vm; /* GC armed only while bytecode is executing */
+    InterpretResult result = run(vm);
+    hkActiveVM = NULL;
+    return result;
 }

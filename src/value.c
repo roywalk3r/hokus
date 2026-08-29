@@ -36,18 +36,29 @@ void freeValueArray(ValueArray *array) {
     initValueArray(array);
 }
 
-static Obj *objects = NULL;
+#include "gc.h"
+
+/* GC state — declared extern in gc.c. */
+Obj *hkObjects = NULL;
+int hkGcCounter = 0;
+int hkGcThreshold = 0;
+VM *hkActiveVM = NULL;
 
 static Obj *allocateObj(size_t size, ObjType type) {
+    gcOnAllocate();
     Obj *obj = HK_REALLOC(NULL, 0, size);
     obj->type = type;
-    obj->next = objects;
-    objects = obj;
+    obj->isMarked = false;
+    obj->next = hkObjects;
+    hkObjects = obj;
     return obj;
 }
 
 void objectsInit(void) {
-    objects = NULL;
+    hkObjects = NULL;
+    hkGcCounter = 0;
+    hkGcThreshold = 0;
+    hkActiveVM = NULL;
 }
 
 static uint32_t hashString(const char *key, int length) {
