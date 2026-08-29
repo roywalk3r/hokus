@@ -66,6 +66,7 @@
           <option value="fib">fibonacci</option>
           <option value="fizzbuzz">fizzbuzz</option>
           <option value="strings">strings</option>
+          <option value="showcase">showcase — closures + classes</option>
         </select>
         <label style="font-size:12px"><input type="checkbox" id="trace"> trace</label>
         <button id="step" disabled>Step ▸</button>
@@ -113,6 +114,54 @@ for (var i = 1; i <= 20; i = i + 1) {
 print greet("World");
 print 40 + 2;
 print 3.14 * 2;
+`,
+  showcase: `fun makeAudit() {
+    var entries = 0;
+    fun record() { entries = entries + 1; return entries; }
+    fun count() { return entries; }
+    return Pair(record, count);
+}
+
+class Pair {
+    init(first, second) {
+        this.first = first;
+        this.second = second;
+    }
+}
+
+class Account {
+    init(owner, audit) {
+        this.owner = owner;
+        this.balance = 0;
+        this.audit = audit;
+    }
+    deposit(amount) {
+        this.balance = this.balance + amount;
+        this.audit.first();
+        return this.balance;
+    }
+}
+
+class PremiumAccount < Account {
+    deposit(amount) {
+        return super.deposit(amount * 1.1);
+    }
+}
+
+var audit = makeAudit();
+var alice = Account("alice", audit);
+var bob = PremiumAccount("bob", audit);
+
+alice.deposit(100);
+alice.deposit(50);
+bob.deposit(100);
+bob.deposit(100);
+
+print alice.owner;
+print alice.balance;
+print bob.owner;
+print bob.balance;
+print audit.second();
 `,
 };
 
