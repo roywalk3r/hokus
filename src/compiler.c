@@ -533,10 +533,26 @@ static void super_(Parser *p, Compiler *c, bool canAssign) {
                           .length = 4, .line = p->previous.line };
         Token superTok = { .type = TOKEN_SUPER, .start = "super",
                            .length = 5, .line = p->previous.line };
-        namedVariable(p, thisTok, false);
-        namedVariable(p, superTok, false);
+        if (matchToken(p, TOKEN_LEFT_PAREN)) {
+            uint8_t argCount = 0;
+            namedVariable(p, thisTok, false);
+            if (!check(p, TOKEN_RIGHT_PAREN)) {
+                do {
+                    expression(p);
+                    if (argCount == 255) error(p, "Can't have more than 255 arguments.");
+                    argCount++;
+                } while (matchToken(p, TOKEN_COMMA));
+            }
+            consume(p, TOKEN_RIGHT_PAREN, "Expect ')' after arguments.");
+            namedVariable(p, superTok, false);
+            emitConstRef(p, OP_SUPER_INVOKE, name);
+            emitByte(p, argCount);
+        } else {
+            namedVariable(p, thisTok, false);
+            namedVariable(p, superTok, false);
+            emitConstRef(p, OP_GET_SUPER, name);
+        }
     }
-    emitConstRef(p, OP_GET_SUPER, name);
 }
 
 static void parsePrecedence(Parser *p, Precedence precedence) {

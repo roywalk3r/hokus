@@ -410,6 +410,27 @@ static InterpretResult run(VM *vm, int budget) {
                 }
                 break;
             }
+            case OP_SUPER_INVOKE: {
+                ObjString *name = READ_STRING();
+                int argCount = READ_BYTE();
+                ObjClass *superclass = AS_CLASS(pop(vm));
+                Value *method;
+                if (!tableGet(superclass->methods, name, &method)) {
+                    char buf[96];
+                    int n = 0;
+                    const char *pre = "Undefined property '";
+                    while (*pre) buf[n++] = *pre++;
+                    for (int i = 0; i < name->length && n < 80; i++) buf[n++] = name->chars[i];
+                    buf[n++] = '\''; buf[n++] = '.'; buf[n] = '\0';
+                    runtimeError(vm, buf);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                /* receiver ('this') is already in slot 0 of the callee's argument window */
+                if (!callClosure(vm, AS_CLOSURE(*method), argCount, &frame)) {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                break;
+            }
             case OP_CLASS: {
                 push(vm, OBJ_VAL(newClass(READ_STRING())));
                 break;
