@@ -1,7 +1,0 @@
-{
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"ls -la /home/rseann/projects/Misc/hokus 2>/dev/null && ls /home/rseann/projects/Misc/vintageVINTAGE-1 2>/dev/null\",\"description\":\"Inspect hokus directory and GLM's parallel project\"}",
-  "error": "Exit code 2\ntotal 16\ndrwxrwxr-x  4 rseann rseann 4096 Aug 29 12:05 .\ndrwxrwxr-x 55 rseann rseann 4096 Aug 29 12:05 ..\ndrwxrwxr-x  3 rseann rseann 4096 Aug 29 12:05 .omc\ndrwx------  4 rseann rseann 4096 Aug 29 12:05 .remember",
-  "timestamp": "2026-08-29T12:06:22.028Z",
-  "retry_count": 1
-}
