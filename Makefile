@@ -28,7 +28,7 @@ hokus-artifact.html: web/hokus.wasm web/index.html tools/build_artifact.sh
 
 artifact: hokus-artifact.html
 
-test: $(BIN) web/hokus.wasm
+test: $(BIN) web/hokus.wasm hokus-artifact.html
 	./tests/run.sh
 
 clean:
