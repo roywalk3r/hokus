@@ -1,0 +1,10 @@
+fun greet(name) {
+    return "Hello, " + name + "!";
+}
+
+print greet("World");
+print greet("Hokus");
+print 40 + 2;
+print 3.14 * 2;
+print !false;
+print nil == nil;

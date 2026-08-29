@@ -1,0 +1,15 @@
+// Iterative Fibonacci
+fun fib(n) {
+    var a = 0;
+    var b = 1;
+    for (var i = 0; i < n; i = i + 1) {
+        var t = a + b;
+        a = b;
+        b = t;
+    }
+    return a;
+}
+
+for (var i = 0; i < 15; i = i + 1) {
+    print fib(i);
+}

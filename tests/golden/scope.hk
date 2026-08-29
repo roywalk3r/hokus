@@ -1,0 +1,11 @@
+var x = "global";
+{
+    var x = "local";
+    print x;
+    var y = 1;
+    {
+        y = y + 1;
+        print y;
+    }
+}
+print x;

@@ -1,0 +1,90 @@
+#ifndef hokus_value_h
+#define hokus_value_h
+
+#include "common.h"
+
+typedef struct Obj Obj;
+typedef struct ObjString ObjString;
+typedef struct ObjFunction ObjFunction;
+struct Chunk;
+
+typedef enum {
+    VAL_NIL,
+    VAL_BOOL,
+    VAL_NUMBER,
+    VAL_OBJ,
+} ValueType;
+
+typedef struct {
+    ValueType type;
+    union {
+        bool boolean;
+        double number;
+        Obj *obj;
+    } as;
+} Value;
+
+#define NIL_VAL         ((Value){VAL_NIL, {.number = 0}})
+#define BOOL_VAL(v)     ((Value){VAL_BOOL, {.boolean = v}})
+#define NUMBER_VAL(v)   ((Value){VAL_NUMBER, {.number = v}})
+#define OBJ_VAL(o)      ((Value){VAL_OBJ, {.obj = (Obj *)(o)}})
+
+#define IS_NIL(v)       ((v).type == VAL_NIL)
+#define IS_BOOL(v)      ((v).type == VAL_BOOL)
+#define IS_NUMBER(v)    ((v).type == VAL_NUMBER)
+#define IS_OBJ(v)       ((v).type == VAL_OBJ)
+#define IS_STRING(v)    (IS_OBJ(v) && ((Obj *)(v).as.obj)->type == OBJ_STRING)
+#define IS_FUNCTION(v)  (IS_OBJ(v) && ((Obj *)(v).as.obj)->type == OBJ_FUNCTION)
+
+#define AS_BOOL(v)      ((v).as.boolean)
+#define AS_NUMBER(v)    ((v).as.number)
+#define AS_OBJ(v)       ((v).as.obj)
+#define AS_STRING(v)    ((ObjString *)(v).as.obj)
+#define AS_FUNCTION(v)  ((ObjFunction *)(v).as.obj)
+
+typedef enum { OBJ_STRING, OBJ_FUNCTION } ObjType;
+
+struct Obj {
+    ObjType type;
+    Obj *next;
+};
+
+struct ObjString {
+    Obj obj;
+    int length;
+    uint32_t hash;
+    char *chars;
+};
+
+struct ObjFunction {
+    Obj obj;
+    int arity;
+    struct Chunk *chunk;
+    ObjString *name;
+};
+
+typedef struct {
+    int count;
+    int capacity;
+    Value *values;
+} ValueArray;
+
+void initValueArray(ValueArray *array);
+void writeValueArray(ValueArray *array, Value value);
+void freeValueArray(ValueArray *array);
+
+/* The VM owns one global object list; these link new objects into it. */
+void objectsInit(void);
+ObjString *copyString(const char *chars, int length);
+ObjString *takeString(char *chars, int length);
+ObjFunction *newFunction(void);
+
+bool valuesEqual(Value a, Value b);
+int hk_strncmp(const char *a, const char *b, int n);
+typedef void (*HkEmitFn)(const char *);
+extern HkEmitFn hkEmit; /* set by the host (native CLI or WASM shim) */
+
+void printValue(Value value);         /* writes through the VM output sink */
+void numberToString(double value, char *buf, int bufSize);
+
+#endif

@@ -1,0 +1,10 @@
+print true and false;
+print true or false;
+print !nil;
+var i = 0;
+while (i < 3) {
+    print i;
+    i = i + 1;
+}
+if (false) print "no";
+else print "yes";

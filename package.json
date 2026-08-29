@@ -1,0 +1,11 @@
+{
+  "name": "hokus",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "make",
+    "wasm": "make wasm",
+    "test": "make test",
+    "playground": "cd web && python3 -m http.server 8000"
+  }
+}

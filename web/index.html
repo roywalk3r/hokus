@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hokus Playground</title>
+<style>
+  :root {
+    --bg: #0f1117; --panel: #171a23; --border: #2a2f3f;
+    --text: #dfe3ea; --dim: #8b93a7; --accent: #f0b429; --accent2: #4cc38a;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f4f5f7; --panel: #ffffff; --border: #d7dbe4;
+      --text: #1c2333; --dim: #5b6475; --accent: #b07d00; --accent2: #0e8a52;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, sans-serif;
+  }
+  header { padding: 1rem 1.5rem .5rem; }
+  h1 { margin: 0; font-size: 1.25rem; letter-spacing: .05em; }
+  h1 .k { color: var(--accent); }
+  header p { margin: .25rem 0 0; color: var(--dim); font-size: .85rem; }
+  main {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+    padding: 1rem 1.5rem 1.5rem; height: calc(100vh - 5.5rem);
+  }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; height: auto; } }
+  .pane { display: flex; flex-direction: column; background: var(--panel);
+          border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .pane .bar { display: flex; align-items: center; justify-content: space-between;
+               padding: .4rem .75rem; border-bottom: 1px solid var(--border);
+               color: var(--dim); font-size: .8rem; text-transform: uppercase;
+               letter-spacing: .08em; }
+  textarea, pre {
+    flex: 1; margin: 0; padding: .75rem; border: 0; resize: none; overflow: auto;
+    background: transparent; color: var(--text);
+    font: 13px/1.5 ui-monospace, "Cascadia Code", Menlo, monospace;
+    min-height: 16rem;
+  }
+  textarea:focus { outline: none; }
+  pre { white-space: pre-wrap; }
+  button {
+    background: var(--accent); color: #17130a; border: 0; border-radius: 5px;
+    padding: .3rem .9rem; font: 600 .8rem system-ui; cursor: pointer;
+  }
+  button:hover { filter: brightness(1.1); }
+  button:disabled { opacity: .5; cursor: default; }
+  #status { color: var(--accent2); text-transform: none; letter-spacing: 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>HOK<span class="k">U</span>S <span style="color:var(--dim)">playground</span></h1>
+  <p>A tiny language compiled to bytecode, running on a freestanding C VM — compiled to raw WASM, no emscripten, no JS interpreter.</p>
+</header>
+<main>
+  <div class="pane">
+    <div class="bar"><span>source.hk</span>
+      <span>
+        <select id="example">
+          <option value="">examples…</option>
+          <option value="fib">fibonacci</option>
+          <option value="fizzbuzz">fizzbuzz</option>
+          <option value="strings">strings</option>
+        </select>
+        <button id="run" disabled>Run ▸</button>
+      </span>
+    </div>
+    <textarea id="src" spellcheck="false">// loading wasm…</textarea>
+  </div>
+  <div class="pane">
+    <div class="bar"><span>vm output</span><span id="status"></span></div>
+    <pre id="out"></pre>
+  </div>
+</main>
+<script>
+const EXAMPLES = {
+  fib: `// fibonacci
+fun fib(n) {
+    var a = 0;
+    var b = 1;
+    for (var i = 0; i < n; i = i + 1) {
+        var t = a + b;
+        a = b;
+        b = t;
+    }
+    return a;
+}
+for (var i = 0; i < 15; i = i + 1) print fib(i);
+`,
+  fizzbuzz: `fun mod(a, b) {
+    while (a >= b) a = a - b;
+    return a;
+}
+for (var i = 1; i <= 20; i = i + 1) {
+    if (mod(i, 15) == 0) print "FizzBuzz";
+    else if (mod(i, 3) == 0) print "Fizz";
+    else if (mod(i, 5) == 0) print "Buzz";
+    else print i;
+}
+`,
+  strings: `fun greet(name) { return "Hello, " + name + "!"; }
+print greet("World");
+print 40 + 2;
+print 3.14 * 2;
+`,
+};
+
+const srcEl = document.getElementById("src");
+const outEl = document.getElementById("out");
+const statusEl = document.getElementById("status");
+const runBtn = document.getElementById("run");
+
+let vm = null;
+
+WebAssembly.instantiateStreaming(fetch("hokus.wasm"), {}).then(({ instance }) => {
+  vm = instance.exports;
+  srcEl.value = EXAMPLES.fib;
+  runBtn.disabled = false;
+  statusEl.textContent = "vm ready";
+}).catch(err => {
+  statusEl.textContent = "failed to load hokus.wasm";
+  outEl.textContent = String(err);
+});
+
+document.getElementById("example").addEventListener("change", e => {
+  if (EXAMPLES[e.target.value]) srcEl.value = EXAMPLES[e.target.value];
+});
+
+runBtn.addEventListener("click", () => {
+  if (!vm) return;
+  const src = srcEl.value;
+  const mem = new Uint8Array(vm.memory.buffer);
+  const cap = vm.hk_source_capacity();
+  const buf = vm.hk_source_buffer();
+  const bytes = new TextEncoder().encode(src);
+  const n = Math.min(bytes.length, cap - 1);
+  mem.set(bytes.subarray(0, n), buf);
+  const t0 = performance.now();
+  const status = vm.hk_run(n);
+  const ms = (performance.now() - t0).toFixed(1);
+  // hk_run may have grown memory; re-slice
+  const outBytes = new Uint8Array(vm.memory.buffer,
+      vm.hk_output(), vm.hk_output_length());
+  outEl.textContent = new TextDecoder().decode(outBytes);
+  statusEl.textContent =
+      (status === 0 ? "ok" : status === 1 ? "compile error" : "runtime error")
+      + ` · ${ms} ms`;
+});
+</script>
+</body>
+</html>

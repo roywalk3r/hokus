@@ -1,0 +1,193 @@
+#include "value.h"
+#include "chunk.h"
+
+static int hk_strlen(const char *s) {
+    int n = 0;
+    while (s[n]) n++;
+    return n;
+}
+
+static void *hk_memcpy(void *dst, const void *src, size_t n) {
+    char *d = dst;
+    const char *s = src;
+    for (size_t i = 0; i < n; i++) d[i] = s[i];
+    return dst;
+}
+
+void initValueArray(ValueArray *array) {
+    array->count = 0;
+    array->capacity = 0;
+    array->values = NULL;
+}
+
+void writeValueArray(ValueArray *array, Value value) {
+    if (array->capacity < array->count + 1) {
+        int old = array->capacity;
+        array->capacity = old < 8 ? 8 : old * 2;
+        array->values = HK_REALLOC(array->values, old * (int)sizeof(Value),
+                                   array->capacity * (int)sizeof(Value));
+    }
+    array->values[array->count] = value;
+    array->count++;
+}
+
+void freeValueArray(ValueArray *array) {
+    HK_FREE(array->values, array->capacity * (int)sizeof(Value));
+    initValueArray(array);
+}
+
+static Obj *objects = NULL;
+
+static Obj *allocateObj(size_t size, ObjType type) {
+    Obj *obj = HK_REALLOC(NULL, 0, size);
+    obj->type = type;
+    obj->next = objects;
+    objects = obj;
+    return obj;
+}
+
+void objectsInit(void) {
+    objects = NULL;
+}
+
+static uint32_t hashString(const char *key, int length) {
+    uint32_t hash = 2166136261u;
+    for (int i = 0; i < length; i++) {
+        hash ^= (uint8_t)key[i];
+        hash *= 16777619;
+    }
+    return hash;
+}
+
+static ObjString *allocateString(char *chars, int length, uint32_t hash) {
+    ObjString *string = (ObjString *)allocateObj(sizeof(ObjString), OBJ_STRING);
+    string->length = length;
+    string->hash = hash;
+    string->chars = chars;
+    return string;
+}
+
+ObjString *takeString(char *chars, int length) {
+    return allocateString(chars, length, hashString(chars, length));
+}
+
+ObjString *copyString(const char *chars, int length) {
+    char *heap = HK_REALLOC(NULL, 0, length + 1);
+    hk_memcpy(heap, chars, length);
+    heap[length] = '\0';
+    return allocateString(heap, length, hashString(heap, length));
+}
+
+ObjFunction *newFunction(void) {
+    ObjFunction *fn = (ObjFunction *)allocateObj(sizeof(ObjFunction), OBJ_FUNCTION);
+    fn->arity = 0;
+    fn->chunk = NULL;
+    fn->name = NULL;
+    return fn;
+}
+
+/* Minimal freestanding %.14g: 14 significant digits, rounded, zeros trimmed. */
+void numberToString(double value, char *buf, int bufSize) {
+    if (value != value) { hk_memcpy(buf, "nan", 4); return; }
+    int i = 0;
+    if (value < 0 || (value == 0 && 1.0 / value < 0)) { /* -0.0 is not < 0 */
+        buf[i++] = '-';
+        value = -value;
+    }
+    if (value >= 1e15) { hk_memcpy(buf + i, "big", 4); return; }
+
+    long long ip = (long long)value;
+    double frac = value - (double)ip;
+
+    /* count integer digits to budget significant digits */
+    int intDigits = 0;
+    for (long long t = ip; t > 0; t /= 10) intDigits++;
+    int sigBudget = 14 - intDigits; /* digits available for the fraction */
+
+    /* generate fraction digits */
+    char fd[24];
+    int m = 0;
+    while (m < sigBudget && m < 20 && frac > 1e-15) {
+        frac *= 10;
+        int d = (int)frac;
+        fd[m++] = (char)('0' + d);
+        frac -= d;
+    }
+    /* round: look at the next digit */
+    frac *= 10;
+    if ((int)frac >= 5) {
+        int k = m - 1;
+        while (k >= 0 && fd[k] == '9') { fd[k] = '0'; k--; }
+        if (k >= 0) fd[k]++;
+        else { ip++; m = 0; } /* carried into the integer part */
+    }
+    /* trim trailing zeros */
+    while (m > 0 && fd[m - 1] == '0') m--;
+
+    /* emit integer part */
+    char tmp[24];
+    int t = 0;
+    if (ip == 0) {
+        buf[i++] = '0';
+    } else {
+        while (ip > 0) { tmp[t++] = (char)('0' + ip % 10); ip /= 10; }
+        while (t > 0 && i < bufSize - 24) buf[i++] = tmp[--t];
+    }
+    if (m > 0 && i < bufSize - 24) {
+        buf[i++] = '.';
+        for (int k = 0; k < m; k++) buf[i++] = fd[k];
+    }
+    buf[i] = '\0';
+}
+
+bool valuesEqual(Value a, Value b) {
+    if (a.type != b.type) return false;
+    switch (a.type) {
+        case VAL_BOOL:   return AS_BOOL(a) == AS_BOOL(b);
+        case VAL_NIL:    return true;
+        case VAL_NUMBER: return AS_NUMBER(a) == AS_NUMBER(b);
+        case VAL_OBJ: {
+            if (IS_STRING(a)) {
+                ObjString *sa = AS_STRING(a), *sb = AS_STRING(b);
+                return sa->length == sb->length && sa->hash == sb->hash &&
+                       hk_strncmp(sa->chars, sb->chars, sa->length) == 0;
+            }
+            return AS_OBJ(a) == AS_OBJ(b);
+        }
+    }
+    return false;
+}
+
+int hk_strncmp(const char *a, const char *b, int n) {
+    for (int i = 0; i < n; i++) {
+        if (a[i] != b[i]) return (unsigned char)a[i] - (unsigned char)b[i];
+    }
+    return 0;
+}
+
+void printValue(Value value) {
+    char buf[64];
+    switch (value.type) {
+        case VAL_BOOL:   hkEmit(AS_BOOL(value) ? "true" : "false"); break;
+        case VAL_NIL:    hkEmit("nil"); break;
+        case VAL_NUMBER:
+            numberToString(AS_NUMBER(value), buf, sizeof(buf));
+            hkEmit(buf);
+            break;
+        case VAL_OBJ:
+            if (IS_STRING(value)) {
+                hkEmit(AS_STRING(value)->chars); /* always null-terminated */
+            } else if (IS_FUNCTION(value)) {
+                ObjFunction *f = AS_FUNCTION(value);
+                if (f->name) {
+                    hkEmit("<fn ");
+                    hkEmit(f->name->chars);
+                    hkEmit(">");
+                } else {
+                    hkEmit("<script>");
+                }
+            }
+            break;
+    }
+    (void)hk_strlen;
+}

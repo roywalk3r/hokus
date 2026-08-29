@@ -1,0 +1,37 @@
+#ifndef hokus_vm_h
+#define hokus_vm_h
+
+#include "chunk.h"
+#include "table.h"
+
+#define FRAMES_MAX 64
+#define STACK_MAX (FRAMES_MAX * 256)
+
+typedef struct {
+    ObjFunction *function;
+    uint8_t *ip;
+    Value *slots;
+} CallFrame;
+
+typedef struct {
+    CallFrame frames[FRAMES_MAX];
+    int frameCount;
+    Value stack[STACK_MAX];
+    Value *stackTop;
+    Table globals;
+    bool hadRuntimeError;
+} VM;
+
+typedef enum {
+    INTERPRET_OK,
+    INTERPRET_COMPILE_ERROR,
+    INTERPRET_RUNTIME_ERROR,
+} InterpretResult;
+
+void initVM(VM *vm);
+void freeVM(VM *vm);
+void resetVMStack(VM *vm);
+InterpretResult interpret(VM *vm, const char *source, int sourceLen);
+void runtimeError(VM *vm, const char *message);
+
+#endif
