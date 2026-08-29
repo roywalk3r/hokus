@@ -6,6 +6,8 @@
     "build": "make",
     "wasm": "make wasm",
     "test": "make test",
-    "playground": "cd web && python3 -m http.server 8000"
+    "playground": "cd web && python3 -m http.server 8000",
+    "artifact": "make artifact",
+    "bench": "make web/hokus.wasm && node tests/bench.js web/hokus.wasm"
   }
 }
