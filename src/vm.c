@@ -47,6 +47,27 @@ void runtimeError(VM *vm, const char *message) {
     buf[n++] = 'p'; buf[n++] = 't'; buf[n++] = ']'; buf[n] = '\0';
     hkEmit(buf);
     hkEmit("\n");
+    for (int i = vm->frameCount - 2; i >= 0; i--) {
+        CallFrame *caller = &vm->frames[i];
+        ObjFunction *fn = caller->closure->function;
+        int callerLine = fn->chunk->lines[
+            (int)(caller->ip - fn->chunk->code) - 1];
+        char line[64];
+        line[0] = '['; line[1] = 'l'; line[2] = 'i'; line[3] = 'n';
+        line[4] = 'e'; line[5] = ' ';
+        numberToString(callerLine, line + 6, sizeof(line) - 10);
+        int m = 6;
+        while (line[m]) m++;
+        line[m++] = ']'; line[m++] = ' '; line[m++] = 'i'; line[m++] = 'n';
+        line[m++] = ' '; line[m] = '\0';
+        hkEmit(line);
+        if (fn->name == NULL) {
+            hkEmit("script\n");
+        } else {
+            hkEmit(fn->name->chars);
+            hkEmit("()\n");
+        }
+    }
     resetVMStack(vm);
     vm->hadRuntimeError = true;
 }
