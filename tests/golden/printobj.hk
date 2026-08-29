@@ -1,0 +1,11 @@
+class Pair { init(a, b) { this.a = a; this.b = b; } describe() { return this.a; } }
+var p = Pair(1, 2);
+print p;
+print Pair;
+print p.describe;
+print p.describe();
+fun fn() {}
+print fn;
+print clock;
+print true; print false; print nil;
+print "s" + "!";
