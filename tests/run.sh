@@ -27,6 +27,16 @@ for f in tests/golden_errors/*.err.hk; do
     fi
 done
 
+echo "== slice-equivalence tests =="
+for f in tests/golden/*.hk; do
+    name=$(basename "$f" .hk)
+    if $BIN --slice 1 "$f" > /tmp/hokus_out 2>&1 && diff -q "tests/golden/$name.expected" /tmp/hokus_out > /dev/null; then
+        echo "PASS $name (slice=1)"
+    else
+        echo "FAIL $name (slice=1)"; fail=1
+    fi
+done
+
 # ---- WASM gate: freestanding build vs golden corpus + API surface ----
 if [ -f web/hokus.wasm ]; then
     echo "== wasm gate =="
