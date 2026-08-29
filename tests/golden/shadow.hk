@@ -1,0 +1,5 @@
+class A { method() { print "method"; } }
+var a = A();
+a.method();
+a.method = "field wins";
+print a.method;
