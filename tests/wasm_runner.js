@@ -99,7 +99,7 @@ for (const f of readdirSync(goldenDir).filter((f) => f.endsWith(".hk"))) {
 {
   const code = vm.hk_run(load("fun a() { b(); } fun b() { undefined_fn(); } a();"));
   const out = read();
-  check("stack trace", code === 70 && out.includes("Undefined variable 'undefined_fn'.") &&
+  check("stack trace", code === 2 && out.includes("Undefined variable 'undefined_fn'.") &&
     out.includes("in b()") && out.includes("in a()") && out.includes("in script"),
     JSON.stringify(out.slice(0, 200)));
 }

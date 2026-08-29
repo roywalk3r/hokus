@@ -35,20 +35,8 @@ void freeVM(VM *vm) {
 void runtimeError(VM *vm, const char *message) {
     hkEmit(message);
     hkEmit("\n");
-    CallFrame *frame = &vm->frames[vm->frameCount - 1];
-    int line = frame->closure->function->chunk->lines[
-        (int)(frame->ip - frame->closure->function->chunk->code) - 1];
-    char buf[64];
-    buf[0] = '['; buf[1] = 'l'; buf[2] = 'i'; buf[3] = 'n'; buf[4] = 'e'; buf[5] = ' ';
-    numberToString(line, buf + 6, sizeof(buf) - 10);
-    int n = 6;
-    while (buf[n]) n++;
-    buf[n++] = ' '; buf[n++] = 'i'; buf[n++] = 'n'; buf[n++] = ' ';
-    buf[n++] = 's'; buf[n++] = 'c'; buf[n++] = 'r'; buf[n++] = 'i';
-    buf[n++] = 'p'; buf[n++] = 't'; buf[n++] = ']'; buf[n] = '\0';
-    hkEmit(buf);
-    hkEmit("\n");
-    for (int i = vm->frameCount - 2; i >= 0; i--) {
+    /* erroring frame first, then the callers — same "[line N] in name()" format */
+    for (int i = vm->frameCount - 1; i >= 0; i--) {
         CallFrame *caller = &vm->frames[i];
         ObjFunction *fn = caller->closure->function;
         int callerLine = fn->chunk->lines[
