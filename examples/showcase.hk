@@ -1,0 +1,53 @@
+// showcase.hk — HOKUS in one file: closures, classes, inheritance.
+// A tiny bank: accounts as objects, transaction audit as a closure.
+
+fun makeAudit() {
+    var entries = 0;              // captured by both functions below
+    fun record() { entries = entries + 1; return entries; }
+    fun count() { return entries; }
+    // pair them via a class instance
+    return Pair(record, count);
+}
+
+class Pair {
+    init(first, second) {
+        this.first = first;
+        this.second = second;
+    }
+}
+
+class Account {
+    init(owner, audit) {
+        this.owner = owner;
+        this.balance = 0;
+        this.audit = audit;
+    }
+    deposit(amount) {
+        this.balance = this.balance + amount;
+        this.audit.first();           // record() — bumps the shared counter
+        return this.balance;
+    }
+}
+
+class PremiumAccount < Account {
+    deposit(amount) {
+        // premium accounts earn a 10% bonus on every deposit
+        return super.deposit(amount * 1.1);
+    }
+}
+
+var audit = makeAudit();
+
+var alice = Account("alice", audit);
+var bob = PremiumAccount("bob", audit);
+
+alice.deposit(100);
+alice.deposit(50);
+bob.deposit(100);       // lands as 110
+bob.deposit(100);       // lands as 110
+
+print alice.owner;      // alice
+print alice.balance;    // 150
+print bob.owner;        // bob
+print bob.balance;      // 220
+print audit.second();   // 4 transactions audited
