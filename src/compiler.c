@@ -267,6 +267,9 @@ static int resolveLocal(Compiler *compiler, Token *name) {
     for (int i = compiler->localCount - 1; i >= 0; i--) {
         Local *local = &compiler->locals[i];
         if (identifiersEqual(name, &local->name)) {
+            if (local->depth == -1) {
+                return -2; /* read in its own initializer */
+            }
             return i;
         }
     }
@@ -291,6 +294,10 @@ static int addUpvalue(Parser *p, Compiler *compiler, uint8_t index, bool isLocal
 static int resolveUpvalue(Parser *p, Compiler *compiler, Token *name) {
     if (compiler->enclosing == NULL) return -1;
     int local = resolveLocal(compiler->enclosing, name);
+    if (local == -2) {
+        error(p, "Can't read local variable in its own initializer.");
+        local = -1;
+    }
     if (local != -1) {
         compiler->enclosing->locals[local].isCaptured = true;
         return addUpvalue(p, compiler, (uint8_t)local, true);
@@ -318,10 +325,12 @@ static void declareVariable(Parser *p, Token *name) {
         Local *local = &current->locals[i];
         if (local->depth < current->scopeDepth) break;
         if (identifiersEqual(name, &local->name)) {
-            error(p, "Variable already declared in this scope.");
+            error(p, "Already a variable with this name in this scope.");
         }
     }
     addLocal(p, *name);
+    /* -1: not yet initialized — reading it before defineVariable is an error */
+    current->locals[current->localCount - 1].depth = -1;
 }
 
 static int parseVariable(Parser *p, const char *errorMessage) {
@@ -332,12 +341,11 @@ static int parseVariable(Parser *p, const char *errorMessage) {
 }
 
 static void defineVariable(Parser *p, int global) {
-    if (current->scopeDepth > 0) return; /* local: already on stack */
+    if (current->scopeDepth > 0) {
+        current->locals[current->localCount - 1].depth = current->scopeDepth;
+        return;
+    }
     emitConstRef(p, OP_DEFINE_GLOBAL, global);
-}
-
-static void markInitialized(void) {
-    /* locals are born initialized in this single-pass design */
 }
 
 /* ---- parse functions ---- */
@@ -445,6 +453,10 @@ static void string(Parser *p, Compiler *c, bool canAssign) {
 static void namedVariable(Parser *p, Token name, bool canAssign) {
     uint8_t getOp, setOp;
     int arg = resolveLocal(current, &name);
+    if (arg == -2) {
+        error(p, "Can't read local variable in its own initializer.");
+        arg = -1;
+    }
     if (arg != -1) {
         getOp = OP_GET_LOCAL;
         setOp = OP_SET_LOCAL;
@@ -660,7 +672,7 @@ static void function(Parser *p, FunctionType type) {
 
 static void funDeclaration(Parser *p) {
     int global = parseVariable(p, "Expect function name.");
-    markInitialized();
+    /* Recursion resolves via the function's own slot-0 local, not this one. */
     function(p, TYPE_FUNCTION);
     defineVariable(p, global);
 }

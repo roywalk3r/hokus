@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 // Runs the official Crafting Interpreters Lox test corpus against HOKUS,
-// restricted to the HOKUS language subset (no classes/closures/etc.).
+// restricted to the HOKUS language subset (no static methods/etc.).
 // Parse `// expect: <line>` annotations and diff program stdout against them.
-// Files containing expected-error markers or unsupported features are SKIPPED
-// and reported as such — never silently.
+// Error-annotation tests are verified against compiler/VM diagnostics:
+//   // [line N] Error at 'x': MSG   → exit 65, output shows [line N] + MSG
+//   // [c line N] Error at end: MSG → exit 65 (c = compile)
+//   // expect runtime error: MSG    → exit 70, ordered expectations then MSG
+// Files containing unsupported features are SKIPPED — never silently.
 import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -29,6 +32,17 @@ function* walk(dir) {
   }
 }
 
+// True if each needle occurs in haystack, in order.
+function orderedContains(haystack, needles) {
+  let pos = 0;
+  for (const n of needles) {
+    const at = haystack.indexOf(n, pos);
+    if (at < 0) return false;
+    pos = at + n.length;
+  }
+  return true;
+}
+
 let pass = 0, fail = 0, skip = 0, smoke = 0;
 const failures = [];
 
@@ -41,16 +55,19 @@ for (const path of walk(root)) {
   if (SKIP_DIRS.has(top)) why = `subset (${top}/)`;
   else if (UNSUPPORTED.some((re) => re.test(src) || re.test(rel)))
     why = "unsupported feature";
-  else if (src.includes("expect error") || src.includes("Error at") ||
-           src.includes("expect runtime error"))
-    why = "error-annotation test";
-  else if (!/\bprint\b/.test(src))
+  else if (!/\bprint\b/.test(src) && !/expect runtime error|Error at|\[c line/.test(src))
     // jlox-REPL tests (expressions/, AST dumping): a bytecode VM has no
     // implicit value printing, so there is no observable output to diff.
     why = "no observable output (REPL-semantics test)";
   if (why) { skip++; continue; }
 
   const expects = [...src.matchAll(/\/\/ expect: ?(.*)/g)].map((m) => m[1]);
+  // Matches `// [line N] Error: M`, `// [line N] Error at 'x': M`,
+  // `// [c line N] Error at end: M`, `// Error at 'x': M`.
+  // Deliberately ignores `[java line N]` (jlox-specific diagnostics).
+  const compileErrs = [...src.matchAll(/\/\/ (?:\[(?:c )?line (\d+)\] )?Error(?: at (?:'[^']*'|end))?: ?(.*)/g)]
+    .map((m) => ({ line: m[1] ? +m[1] : null, msg: m[2] }));
+  const runtimeErrs = [...src.matchAll(/\/\/ expect runtime error: ?(.*)/g)].map((m) => m[1]);
 
   let out = "", code = 0;
   try {
@@ -59,6 +76,43 @@ for (const path of walk(root)) {
   } catch (e) {
     code = e.status ?? 1;
     out = (e.stdout ?? "") + (e.stderr ?? "");
+  }
+
+  if (compileErrs.length > 0) {
+    // Expect a compile error: exit 65, and every annotated (line, message)
+    // must appear in the output.
+    let ok = code === 65;
+    for (const ce of compileErrs) {
+      if (ce.line !== null && !out.includes(`[line ${ce.line}]`)) ok = false;
+      if (!out.includes(ce.msg)) ok = false;
+    }
+    if (ok) pass++;
+    else {
+      fail++;
+      failures.push({
+        rel, code,
+        expected: `exit 65 + ` + compileErrs.map((c) => `[line ${c.line}] ${c.msg}`).join("; "),
+        out,
+      });
+    }
+    continue;
+  }
+
+  if (runtimeErrs.length > 0) {
+    // Expect a runtime error: exit 70, any `// expect:` lines print first (in
+    // order), then the runtime error message.
+    const ok = code === 70 &&
+      orderedContains(out, [...expects, ...runtimeErrs]);
+    if (ok) pass++;
+    else {
+      fail++;
+      failures.push({
+        rel, code,
+        expected: `exit 70 + ` + [...expects, ...runtimeErrs].join(" | "),
+        out,
+      });
+    }
+    continue;
   }
 
   if (expects.length === 0) {

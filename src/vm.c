@@ -126,6 +126,16 @@ static bool callValue(VM *vm, int argCount, CallFrame **frameOut) {
     return false;
 }
 
+static void undefinedVarError(VM *vm, ObjString *name) {
+    char buf[96];
+    int n = 0;
+    const char *pre = "Undefined variable '";
+    while (*pre) buf[n++] = *pre++;
+    for (int i = 0; i < name->length && n < 80; i++) buf[n++] = name->chars[i];
+    buf[n++] = '\''; buf[n++] = '.'; buf[n] = '\0';
+    runtimeError(vm, buf);
+}
+
 static bool bindMethod(VM *vm, ObjClass *klass, ObjString *name) {
     Value *method;
     if (!tableGet(klass->methods, name, &method)) {
@@ -216,7 +226,7 @@ static InterpretResult run(VM *vm) {
                 ObjString *name = READ_STRING();
                 Value *value;
                 if (!tableGet(&vm->globals, name, &value)) {
-                    runtimeError(vm, "Undefined variable.");
+                    undefinedVarError(vm, name);
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 push(vm, *value);
@@ -232,7 +242,7 @@ static InterpretResult run(VM *vm) {
                 ObjString *name = READ_STRING();
                 if (tableSet(&vm->globals, name, peek(vm, 0))) {
                     tableDelete(&vm->globals, name);
-                    runtimeError(vm, "Undefined variable.");
+                    undefinedVarError(vm, name);
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 break;
