@@ -9,6 +9,8 @@ source ─► lexer ─► Pratt parser ─► single-pass bytecode compiler ─
                                         native CLI (libc) ───────┴────── WASM (no libc)
 ```
 
+![Playground: source, live bytecode disassembly, and VM output](docs/playground-run.png)
+
 ## The layers
 
 | Layer | Where | Notes |
