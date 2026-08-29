@@ -15,8 +15,18 @@ const [bin, root] = process.argv.slice(2);
 
 // Directories whose semantics HOKUS deliberately does not implement.
 const SKIP_DIRS = new Set([
-  "regression", "limit",
   "scanning", // asserts the scanner's token dump — jlox-implementation-specific
+]);
+
+// Individual files HOKUS deliberately diverges on.
+const SKIP_FILES = new Map([
+  // HOKUS widened constant operands to 16 bits (65536 slots); these assert
+  // the corpus's 8-bit-of-constants failure mode.
+  ["limit/no_reuse_constants.lox", "16-bit constant pool by design"],
+  ["limit/too_many_constants.lox", "16-bit constant pool by design"],
+  // jlox REPL/AST-printing chapter scaffolding, not program semantics.
+  ["expressions/evaluate.lox", "REPL-semantics test"],
+  ["expressions/parse.lox", "REPL-semantics test"],
 ]);
 
 // Feature tokens that place a file outside the subset.
@@ -53,12 +63,9 @@ for (const path of walk(root)) {
 
   let why = null;
   if (SKIP_DIRS.has(top)) why = `subset (${top}/)`;
+  else if (SKIP_FILES.has(rel)) why = SKIP_FILES.get(rel);
   else if (UNSUPPORTED.some((re) => re.test(src) || re.test(rel)))
     why = "unsupported feature";
-  else if (!/\bprint\b/.test(src) && !/expect runtime error|Error at|\[c line/.test(src))
-    // jlox-REPL tests (expressions/, AST dumping): a bytecode VM has no
-    // implicit value printing, so there is no observable output to diff.
-    why = "no observable output (REPL-semantics test)";
   if (why) { skip++; continue; }
 
   const expects = [...src.matchAll(/\/\/ expect: ?(.*)/g)].map((m) => m[1]);
