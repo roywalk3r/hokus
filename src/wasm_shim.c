@@ -4,7 +4,7 @@
 
 #include "vm.h"
 
-#define HEAP_SIZE (4 * 1024 * 1024)
+#define HEAP_SIZE (16 * 1024 * 1024)
 #define OUT_SIZE  (256 * 1024)
 #define SRC_SIZE  (256 * 1024)
 
@@ -15,9 +15,14 @@ static int outLen;
 static char srcBuf[SRC_SIZE];
 static VM theVM;
 
+static void bufferEmit(const char *s);
+
 void *hk_alloc(size_t size) {
     size = (size + 7) & ~(size_t)7; /* 8-byte align */
-    if (heapUsed + size > HEAP_SIZE) return (void *)0;
+    if (heapUsed + size > HEAP_SIZE) {
+        bufferEmit("fatal: VM heap exhausted\n");
+        __builtin_trap(); /* wasm `unreachable` — surfaces as RuntimeError in JS */
+    }
     void *ptr = heap + heapUsed;
     heapUsed += size;
     return ptr;
