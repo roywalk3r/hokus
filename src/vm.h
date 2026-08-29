@@ -29,12 +29,15 @@ typedef enum {
     INTERPRET_OK,
     INTERPRET_COMPILE_ERROR,
     INTERPRET_RUNTIME_ERROR,
+    INTERPRET_PAUSED, /* instruction budget exhausted; call vmRunSlice again */
 } InterpretResult;
 
 void initVM(VM *vm);
 void freeVM(VM *vm);
 void resetVMStack(VM *vm);
 InterpretResult interpret(VM *vm, const char *source, int sourceLen);
+InterpretResult vmStart(VM *vm, const char *source, int sourceLen);
+InterpretResult vmRunSlice(VM *vm, int budget);
 void runtimeError(VM *vm, const char *message);
 
 #endif

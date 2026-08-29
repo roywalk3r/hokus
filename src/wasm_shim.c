@@ -72,6 +72,32 @@ int hk_run(int sourceLength) { return runInner(sourceLength, 0); }
 /* Same as hk_run, with per-instruction execution trace interleaved. */
 int hk_run_trace(int sourceLength) { return runInner(sourceLength, 1); }
 
+/* ---- debugger: prepare once, then step in slices (heap NOT reset) ---- */
+
+/* Compile + prime the VM; trace on. Returns 0 ready, 65 compile error. */
+int hk_prepare(int sourceLength, int trace) {
+    heapUsed = 0;
+    outLen = 0;
+    virtualClock += 1;
+    srcBuf[sourceLength < SRC_SIZE ? sourceLength : SRC_SIZE - 1] = '\0';
+    hkEmit = bufferEmit;
+    initVM(&theVM);
+    theVM.trace = trace;
+    outBuf[outLen] = '\0';
+    return vmStart(&theVM, srcBuf, sourceLength) == INTERPRET_COMPILE_ERROR
+        ? 65 : 0;
+}
+
+/* Run at most `budget` instructions of the prepared program.
+   Returns 0 done, 2 paused (more to run), 70 runtime error. */
+int hk_step(int budget) {
+    InterpretResult r = vmRunSlice(&theVM, budget);
+    outBuf[outLen] = '\0';
+    if (r == INTERPRET_PAUSED) return 2;
+    if (r == INTERPRET_RUNTIME_ERROR) return 70;
+    return 0;
+}
+
 char *hk_output(void) { return outBuf; }
 int hk_output_length(void) { return outLen; }
 

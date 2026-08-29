@@ -68,6 +68,7 @@
           <option value="strings">strings</option>
         </select>
         <label style="font-size:12px"><input type="checkbox" id="trace"> trace</label>
+        <button id="step" disabled>Step ▸</button>
         <button id="run" disabled>Run ▸</button>
       </span>
     </div>
@@ -119,6 +120,7 @@ const srcEl = document.getElementById("src");
 const outEl = document.getElementById("out");
 const statusEl = document.getElementById("status");
 const runBtn = document.getElementById("run");
+const stepBtn = document.getElementById("step");
 const bcEl = document.getElementById("bc");
 const bcStatusEl = document.getElementById("bcStatus");
 
@@ -128,6 +130,7 @@ WebAssembly.instantiateStreaming(fetch("hokus.wasm"), {}).then(({ instance }) =>
   vm = instance.exports;
   srcEl.value = EXAMPLES.fib;
   runBtn.disabled = false;
+  stepBtn.disabled = false;
   statusEl.textContent = "vm ready";
 }).catch(err => {
   statusEl.textContent = "failed to load hokus.wasm";
@@ -170,6 +173,50 @@ runBtn.addEventListener("click", () => {
       ? readOutput()
       : "(compile error — no bytecode)\n\n" + readOutput();
   bcStatusEl.textContent = drc === 0 ? "disassembled" : "";
+  stepping = false;
+});
+
+/* step-through debugger: first click compiles + primes, each click after
+   runs a slice of instructions with the trace on */
+let stepping = false;
+srcEl.addEventListener("input", () => { stepping = false; });
+
+stepBtn.addEventListener("click", () => {
+  if (!vm) return;
+  if (!stepping) {
+    /* disasm BEFORE prepare: hk_disasm resets the VM's bump heap */
+    const drc = vm.hk_disasm(loadSource(srcEl.value));
+    bcEl.textContent = drc === 0
+        ? readOutput()
+        : "(compile error — no bytecode)\n\n" + readOutput();
+    bcStatusEl.textContent = drc === 0 ? "disassembled" : "";
+    const rc = vm.hk_prepare(loadSource(srcEl.value), 1);
+    if (rc !== 0) {
+      stepping = false;
+      outEl.textContent = readOutput();
+      statusEl.textContent = "compile error";
+      return;
+    }
+    outEl.textContent = "";
+    stepping = true;
+    stepBtn.textContent = "Step ▸ (running)";
+  }
+  const before = outEl.textContent.length;
+  const rc = vm.hk_step(64);
+  outEl.textContent = readOutput();
+  outEl.scrollTop = outEl.scrollHeight;
+  const newInstrs = (outEl.textContent.length - before > 0);
+  if (rc === 0) {
+    stepping = false;
+    stepBtn.textContent = "Step ▸";
+    statusEl.textContent = "done · program finished";
+  } else if (rc === 70) {
+    stepping = false;
+    stepBtn.textContent = "Step ▸";
+    statusEl.textContent = "runtime error";
+  } else {
+    statusEl.textContent = "paused · ≤64 instructions" + (newInstrs ? "" : " (idling?)");
+  }
 });
 </script>
 </body>

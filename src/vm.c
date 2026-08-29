@@ -198,7 +198,9 @@ static void closeUpvalues(VM *vm, Value *last) {
     }
 }
 
-static InterpretResult run(VM *vm) {
+/* budget: max instructions to execute (-1 = unlimited); returning
+   INTERPRET_PAUSED leaves VM state intact for a later vmRunSlice call */
+static InterpretResult run(VM *vm, int budget) {
     CallFrame *frame = &vm->frames[vm->frameCount - 1];
 
 #define READ_BYTE() (*frame->ip++)
@@ -217,6 +219,8 @@ static InterpretResult run(VM *vm) {
     } while (false)
 
     for (;;) {
+        if (budget == 0) return INTERPRET_PAUSED;
+        if (budget > 0) budget--;
         if (vm->trace) {
             hkEmit("          ");
             for (Value *slot = vm->stack; slot < vm->stackTop; slot++) {
@@ -439,7 +443,9 @@ static Value clockNative(int argCount, Value *args) {
     return NUMBER_VAL(hkClockSeconds());
 }
 
-InterpretResult interpret(VM *vm, const char *source, int sourceLen) {
+/* Compile source and prime the VM's first frame without executing anything.
+   Returns INTERPRET_OK (ready to slice) or INTERPRET_COMPILE_ERROR. */
+InterpretResult vmStart(VM *vm, const char *source, int sourceLen) {
     tableSet(&vm->globals, copyString("clock", 5),
              OBJ_VAL(newNative(clockNative)));
     ObjFunction *function = compile(source, sourceLen);
@@ -451,11 +457,22 @@ InterpretResult interpret(VM *vm, const char *source, int sourceLen) {
     frame->closure = closure;
     frame->ip = function->chunk->code;
     frame->slots = vm->stack;
+    return INTERPRET_OK;
+}
 
-    /* Function chunks stay alive for the VM's lifetime: globals hold
-       ObjFunctions pointing into them. Freed with the VM in freeVM(). */
+/* Execute up to `budget` instructions (-1 = unlimited).
+    Frame/stack state lives in the VM, so slicing is re-entrant. */
+InterpretResult vmRunSlice(VM *vm, int budget) {
     hkActiveVM = vm; /* GC armed only while bytecode is executing */
-    InterpretResult result = run(vm);
+    InterpretResult result = run(vm, budget);
     hkActiveVM = NULL;
     return result;
+}
+
+InterpretResult interpret(VM *vm, const char *source, int sourceLen) {
+    /* Function chunks stay alive for the VM's lifetime: globals hold
+       ObjFunctions pointing into them. Freed with the VM in freeVM(). */
+    InterpretResult started = vmStart(vm, source, sourceLen);
+    if (started == INTERPRET_COMPILE_ERROR) return started;
+    return vmRunSlice(vm, -1);
 }
