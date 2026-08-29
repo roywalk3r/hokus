@@ -394,26 +394,6 @@ static void literal(Parser *p, Compiler *c, bool canAssign) {
     }
 }
 
-static double parseDouble(const char *s, int length) {
-    double result = 0;
-    int i = 0;
-    while (i < length && s[i] >= '0' && s[i] <= '9') {
-        result = result * 10 + (s[i] - '0');
-        i++;
-    }
-    if (i < length && s[i] == '.') {
-        i++;
-        double frac = 0, scale = 1;
-        while (i < length && s[i] >= '0' && s[i] <= '9') {
-            frac = frac * 10 + (s[i] - '0');
-            scale *= 10;
-            i++;
-        }
-        result += frac / scale;
-    }
-    return result;
-}
-
 static void number(Parser *p, Compiler *c, bool canAssign) {
     (void)c; (void)canAssign;
     emitConstant(p, NUMBER_VAL(parseDouble(p->previous.start, p->previous.length)));

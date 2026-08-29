@@ -156,5 +156,6 @@ extern HkEmitFn hkEmit; /* set by the host (native CLI or WASM shim) */
 
 void printValue(Value value);         /* writes through the VM output sink */
 void numberToString(double value, char *buf, int bufSize);
+double parseDouble(const char *s, int length);
 
 #endif

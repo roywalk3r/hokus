@@ -7,6 +7,7 @@
 
 #include "compiler.h"
 #include "debug.h"
+#include "lexer.h"
 #include "vm.h"
 
 static void stdoutEmit(const char *s) { fputs(s, stdout); }
@@ -33,9 +34,11 @@ static char *readFile(const char *path) {
     return buffer;
 }
 
-static void runFile(VM *vm, const char *path, bool disasm) {
+static void runFile(VM *vm, const char *path, bool disasm, bool scan) {
     char *source = readFile(path);
-    if (disasm) {
+    if (scan) {
+        lexDump(source);
+    } else if (disasm) {
         ObjFunction *fn = compile(source, (int)strlen(source));
         if (fn == NULL) exit(65);
         disassembleChunk(fn->chunk, path);
@@ -64,12 +67,15 @@ int main(int argc, char **argv) {
     hkEmit = stdoutEmit;
     bool disasm = false;
     bool trace = false;
+    bool scan = false;
     const char *path = NULL;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--disasm") == 0 || strcmp(argv[i], "-d") == 0) {
             disasm = true;
         } else if (strcmp(argv[i], "--trace") == 0 || strcmp(argv[i], "-t") == 0) {
             trace = true;
+        } else if (strcmp(argv[i], "--scan") == 0 || strcmp(argv[i], "-s") == 0) {
+            scan = true;
         } else {
             path = argv[i];
         }
@@ -81,7 +87,7 @@ int main(int argc, char **argv) {
     if (path == NULL) {
         repl(&vm);
     } else {
-        runFile(&vm, path, disasm);
+        runFile(&vm, path, disasm, scan);
     }
     freeVM(&vm);
     return 0;

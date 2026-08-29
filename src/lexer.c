@@ -1,4 +1,5 @@
 #include "lexer.h"
+#include "value.h"
 
 void initLexer(Lexer *lexer, const char *source) {
     lexer->start = source;
@@ -159,4 +160,50 @@ Token nextToken(Lexer *l) {
         case '"': return string(l);
     }
     return errorToken(l, "Unexpected character.");
+}
+
+/* ---- token-stream dump (jlox-style, drives --scan vs the scanning corpus) ---- */
+
+static const char *TOKEN_NAMES[] = {
+    "LEFT_PAREN", "RIGHT_PAREN", "LEFT_BRACE", "RIGHT_BRACE",
+    "COMMA", "DOT", "MINUS", "PLUS", "SEMICOLON", "SLASH", "STAR",
+    "BANG", "BANG_EQUAL", "EQUAL", "EQUAL_EQUAL",
+    "GREATER", "GREATER_EQUAL", "LESS", "LESS_EQUAL",
+    "IDENTIFIER", "STRING", "NUMBER",
+    "AND", "CLASS", "ELSE", "FALSE", "FOR", "FUN",
+    "IF", "NIL", "OR", "PRINT", "RETURN",
+    "SUPER", "THIS", "TRUE", "VAR", "WHILE",
+    "ERROR", "EOF"
+};
+
+static void emitSpan(const char *s, int length) {
+    char c[2] = { 0, 0 };
+    for (int i = 0; i < length; i++) { c[0] = s[i]; hkEmit(c); }
+}
+
+void lexDump(const char *source) {
+    Lexer lexer;
+    initLexer(&lexer, source);
+    for (;;) {
+        Token t = nextToken(&lexer);
+        hkEmit(TOKEN_NAMES[t.type]);
+        hkEmit(" ");
+        emitSpan(t.start, t.length);
+        hkEmit(" ");
+        if (t.type == TOKEN_NUMBER) {
+            char buf[40];
+            numberToString(parseDouble(t.start, t.length), buf, sizeof(buf));
+            hkEmit(buf);
+            /* jlox prints doubles Java-style: integral values carry ".0" */
+            bool hasDot = false;
+            for (int i = 0; buf[i]; i++) if (buf[i] == '.') hasDot = true;
+            if (!hasDot) hkEmit(".0");
+        } else if (t.type == TOKEN_STRING) {
+            emitSpan(t.start + 1, t.length - 2); /* strip the quotes */
+        } else {
+            hkEmit("null");
+        }
+        hkEmit("\n");
+        if (t.type == TOKEN_EOF) break;
+    }
 }

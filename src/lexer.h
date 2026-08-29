@@ -34,5 +34,7 @@ typedef struct {
 
 void initLexer(Lexer *lexer, const char *source);
 Token nextToken(Lexer *lexer);
+/* Dumps the token stream ("TYPE lexeme literal", jlox style) through hkEmit. */
+void lexDump(const char *source);
 
 #endif

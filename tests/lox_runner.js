@@ -13,11 +13,6 @@ import { join, relative } from "node:path";
 
 const [bin, root] = process.argv.slice(2);
 
-// Directories whose semantics HOKUS deliberately does not implement.
-const SKIP_DIRS = new Set([
-  "scanning", // asserts the scanner's token dump — jlox-implementation-specific
-]);
-
 // Individual files HOKUS deliberately diverges on.
 const SKIP_FILES = new Map([
   // HOKUS widened constant operands to 16 bits (65536 slots); these assert
@@ -62,8 +57,7 @@ for (const path of walk(root)) {
   const src = readFileSync(path, "utf8");
 
   let why = null;
-  if (SKIP_DIRS.has(top)) why = `subset (${top}/)`;
-  else if (SKIP_FILES.has(rel)) why = SKIP_FILES.get(rel);
+  if (SKIP_FILES.has(rel)) why = SKIP_FILES.get(rel);
   else if (UNSUPPORTED.some((re) => re.test(src) || re.test(rel)))
     why = "unsupported feature";
   if (why) { skip++; continue; }
@@ -78,8 +72,10 @@ for (const path of walk(root)) {
 
   let out = "", code = 0;
   try {
+    // scanning/ asserts the token stream: run in --scan mode
+    const args = top === "scanning" ? ["--scan", path] : [path];
     // zoo_batch/zoo are clock-bounded benchmarks that run ~10s by design
-    out = execFileSync(bin, [path], { encoding: "utf8", timeout: 30_000 });
+    out = execFileSync(bin, args, { encoding: "utf8", timeout: 30_000 });
   } catch (e) {
     code = e.status ?? 1;
     out = (e.stdout ?? "") + (e.stderr ?? "");

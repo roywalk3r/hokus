@@ -147,6 +147,27 @@ ObjBoundMethod *newBoundMethod(Value receiver, ObjClosure *method) {
     return bound;
 }
 
+/* Freestanding strtod for decimal literals (digits [. digits]). */
+double parseDouble(const char *s, int length) {
+    double result = 0;
+    int i = 0;
+    while (i < length && s[i] >= '0' && s[i] <= '9') {
+        result = result * 10 + (s[i] - '0');
+        i++;
+    }
+    if (i < length && s[i] == '.') {
+        i++;
+        double frac = 0, scale = 1;
+        while (i < length && s[i] >= '0' && s[i] <= '9') {
+            frac = frac * 10 + (s[i] - '0');
+            scale *= 10;
+            i++;
+        }
+        result += frac / scale;
+    }
+    return result;
+}
+
 /* Minimal freestanding %.14g: 14 significant digits, rounded, zeros trimmed. */
 void numberToString(double value, char *buf, int bufSize) {
     if (value != value) { hk_memcpy(buf, "nan", 4); return; }
