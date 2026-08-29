@@ -21,10 +21,16 @@ web/hokus.wasm: $(SRC_CORE) src/debug.c src/wasm_shim.c
 
 wasm: web/hokus.wasm
 
+# single-file playground with the WASM module embedded (works from file://)
+hokus-artifact.html: web/hokus.wasm web/index.html tools/build_artifact.sh
+	./tools/build_artifact.sh
+
+artifact: hokus-artifact.html
+
 test: $(BIN) web/hokus.wasm
 	./tests/run.sh
 
 clean:
-	rm -rf bin web/hokus.wasm
+	rm -rf bin web/hokus.wasm hokus-artifact.html
 
-.PHONY: all wasm test clean
+.PHONY: all wasm artifact test clean

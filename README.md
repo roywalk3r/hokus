@@ -66,6 +66,7 @@ bin/hokus -t examples/fib.hk       # execution trace
 bin/hokus -s examples/fib.hk       # token dump (jlox format)
 bin/hokus --slice 100 examples/fib.hk   # run in 100-instruction slices
 npm run playground    # serve web/ at http://localhost:8000
+make artifact         # hokus-artifact.html — whole playground, one file, WASM embedded
 ```
 
 ## Verification — the external gate
