@@ -1,0 +1,14 @@
+class Box { init(v) { this.v = v; } }
+fun churn(n) {
+  var parts = "abc";
+  var last = Box(1);
+  for (var i = 2; i <= n; i = i + 1) {
+    parts = parts + "x";
+    last = Box(last);      // linked chain of dead Boxes
+  }
+  return parts;
+}
+var total = "";
+for (var r = 0; r < 40; r = r + 1) total = total + churn(50);
+
+print "survived";
