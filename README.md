@@ -90,7 +90,9 @@ every golden program runs identically under raw WASM, and the exported API surfa
 (`hk_run`, `hk_run_trace`, `hk_disasm`, `hk_prepare`/`hk_step`) is checked —
 including the property that budgeted step slices produce byte-identical output to
 a full run. Natively, `--slice N` runs any program in N-instruction budgeted
-slices, so the re-entrant interpreter is gated on both hosts.
+slices, so the re-entrant interpreter is gated on both hosts. `HOKUS_SLICE_SWEEP=1
+./tests/run.sh` re-runs the entire corpus at `--slice 17`, proving the pause/resume
+interpreter byte-identical across all 266 third-party programs, not just goldens.
 
 ## Design notes
 
