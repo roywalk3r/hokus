@@ -63,10 +63,13 @@ static void repl(VM *vm) {
 int main(int argc, char **argv) {
     hkEmit = stdoutEmit;
     bool disasm = false;
+    bool trace = false;
     const char *path = NULL;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--disasm") == 0 || strcmp(argv[i], "-d") == 0) {
             disasm = true;
+        } else if (strcmp(argv[i], "--trace") == 0 || strcmp(argv[i], "-t") == 0) {
+            trace = true;
         } else {
             path = argv[i];
         }
@@ -74,6 +77,7 @@ int main(int argc, char **argv) {
 
     VM vm;
     initVM(&vm);
+    vm.trace = trace;
     if (path == NULL) {
         repl(&vm);
     } else {

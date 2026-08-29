@@ -1,5 +1,6 @@
 #include "vm.h"
 #include "compiler.h"
+#include "debug.h"
 #include "gc.h"
 
 extern VM *hkActiveVM; /* gc.c gate: collections only mid-execution */
@@ -16,6 +17,7 @@ void initVM(VM *vm) {
     initTable(&vm->globals);
     objectsInit();
     vm->initString = copyString("init", 4);
+    vm->trace = 0;
     resetVMStack(vm);
 }
 
@@ -215,6 +217,18 @@ static InterpretResult run(VM *vm) {
     } while (false)
 
     for (;;) {
+        if (vm->trace) {
+            hkEmit("          ");
+            for (Value *slot = vm->stack; slot < vm->stackTop; slot++) {
+                hkEmit("[ ");
+                printValue(*slot);
+                hkEmit(" ]");
+            }
+            hkEmit("\n");
+            disassembleInstruction(
+                frame->closure->function->chunk,
+                (int)(frame->ip - frame->closure->function->chunk->code));
+        }
         uint8_t instruction = READ_BYTE();
         switch (instruction) {
             case OP_CONSTANT: push(vm, READ_CONSTANT()); break;

@@ -67,6 +67,7 @@
           <option value="fizzbuzz">fizzbuzz</option>
           <option value="strings">strings</option>
         </select>
+        <label style="font-size:12px"><input type="checkbox" id="trace"> trace</label>
         <button id="run" disabled>Run ▸</button>
       </span>
     </div>
@@ -154,14 +155,15 @@ runBtn.addEventListener("click", () => {
   if (!vm) return;
   const src = srcEl.value;
 
+  const trace = document.getElementById("trace").checked;
   const runLen = loadSource(src);
   const t0 = performance.now();
-  const status = vm.hk_run(runLen);
+  const status = trace ? vm.hk_run_trace(runLen) : vm.hk_run(runLen);
   const ms = (performance.now() - t0).toFixed(1);
   outEl.textContent = readOutput();
   statusEl.textContent =
       (status === 0 ? "ok" : status === 1 ? "compile error" : "runtime error")
-      + ` · ${ms} ms`;
+      + ` · ${ms} ms` + (trace ? " · traced" : "");
 
   const drc = vm.hk_disasm(loadSource(src));
   bcEl.textContent = drc === 0

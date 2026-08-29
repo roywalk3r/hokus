@@ -54,17 +54,23 @@ static void bufferEmit(const char *s) {
 char *hk_source_buffer(void) { return srcBuf; }
 int hk_source_capacity(void) { return SRC_SIZE; }
 
-int hk_run(int sourceLength) {
+static int runInner(int sourceLength, int trace) {
     heapUsed = 0;
     outLen = 0;
     virtualClock += 1;
     srcBuf[sourceLength < SRC_SIZE ? sourceLength : SRC_SIZE - 1] = '\0';
     hkEmit = bufferEmit;
     initVM(&theVM);
+    theVM.trace = trace;
     InterpretResult result = interpret(&theVM, srcBuf, sourceLength);
     outBuf[outLen] = '\0';
     return (int)result;
 }
+
+int hk_run(int sourceLength) { return runInner(sourceLength, 0); }
+
+/* Same as hk_run, with per-instruction execution trace interleaved. */
+int hk_run_trace(int sourceLength) { return runInner(sourceLength, 1); }
 
 char *hk_output(void) { return outBuf; }
 int hk_output_length(void) { return outLen; }

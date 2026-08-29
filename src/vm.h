@@ -21,6 +21,7 @@ typedef struct {
     Table globals;
     ObjUpvalue *openUpvalues;
     ObjString *initString; /* cached "init" root for construction calls */
+    int trace;             /* per-instruction execution trace when non-zero */
     bool hadRuntimeError;
 } VM;
 
