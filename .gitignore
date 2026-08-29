@@ -3,3 +3,6 @@ tests/external/
 .omc/
 .claude/
 .remember/
+
+.playwright-mcp/
+playground-bytecode.png
