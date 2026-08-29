@@ -1,0 +1,4 @@
+Undefined variable 'undefined_fn'.
+[line 2] in b()
+[line 1] in a()
+[line 3] in script

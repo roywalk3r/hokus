@@ -20,7 +20,14 @@ for f in tests/golden_errors/*.err.hk; do
     name=$(basename "$f" .err.hk)
     $BIN "$f" > /tmp/hokus_out 2>&1
     code=$?
-    if [ $code -eq 70 ] && grep -q "Undefined variable" /tmp/hokus_out; then
+    expected="$f.expected"
+    if [ -f "$expected" ]; then
+        if [ $code -eq 70 ] && diff -q "$expected" /tmp/hokus_out >/dev/null; then
+            echo "PASS $name"
+        else
+            echo "FAIL $name (exit $code, trace mismatch)"; diff "$expected" /tmp/hokus_out; fail=1
+        fi
+    elif [ $code -eq 70 ] && grep -q "Undefined variable" /tmp/hokus_out; then
         echo "PASS $name"
     else
         echo "FAIL $name (exit $code)"; cat /tmp/hokus_out; fail=1
