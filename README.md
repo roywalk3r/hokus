@@ -45,6 +45,13 @@ functions with recursion and **closures**; **classes** with methods, initializer
 `this`, inheritance, and `super`; `print`; a `clock()` native. Deviations from
 stock Lox: no `static` methods (skipped in the corpus harness, loudly).
 
+## Performance
+
+Recursive `fib(28)` (~1.03M calls): **44 ms native**, **49 ms raw WASM** in Node
+(warm; ~107 ms cold on first instantiation). The no-libc WASM build runs within
+**~1.1× of native** — it shares the same C object code, compiled by the same clang.
+Reproduce: `node tests/bench.js` vs `time bin/hokus` on the same program.
+
 ## Build & run
 
 ```bash
