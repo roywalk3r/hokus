@@ -95,6 +95,15 @@ for (const f of readdirSync(goldenDir).filter((f) => f.endsWith(".hk"))) {
     out.includes("Undefined variable 'bogus'."), `rc ${rc}`);
 }
 
+// 6b. runtime errors carry a clox-style stack trace back to script
+{
+  const code = vm.hk_run(load("fun a() { b(); } fun b() { undefined_fn(); } a();"));
+  const out = read();
+  check("stack trace", code === 70 && out.includes("Undefined variable 'undefined_fn'.") &&
+    out.includes("in b()") && out.includes("in a()") && out.includes("in script"),
+    JSON.stringify(out.slice(0, 200)));
+}
+
 console.log(`wasm gate: ${pass} passed, ${fail} failed`);
 for (const f of failures) console.log("FAIL", f);
 process.exit(fail ? 1 : 0);
