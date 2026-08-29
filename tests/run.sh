@@ -27,6 +27,14 @@ for f in tests/golden_errors/*.err.hk; do
     fi
 done
 
+# ---- WASM gate: freestanding build vs golden corpus + API surface ----
+if [ -f web/hokus.wasm ]; then
+    echo "== wasm gate =="
+    node tests/wasm_runner.js web/hokus.wasm tests/golden || fail=1
+else
+    echo "== wasm gate skipped (run: make wasm) =="
+fi
+
 # ---- external gate: Crafting Interpreters Lox test corpus ----
 LOX=tests/external/craftinginterpreters/test
 if [ -d "$LOX" ]; then

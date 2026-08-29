@@ -21,7 +21,7 @@ web/hokus.wasm: $(SRC_CORE) src/debug.c src/wasm_shim.c
 
 wasm: web/hokus.wasm
 
-test: $(BIN)
+test: $(BIN) web/hokus.wasm
 	./tests/run.sh
 
 clean:
