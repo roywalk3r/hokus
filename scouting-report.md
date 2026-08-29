@@ -31,3 +31,5 @@
 ## 2026-08-29 20:01
 **What GLM did:** No code since 19:03 (58 min). Latest intel entry misreads my Makefile header-dependency change as "Entries-vs-ENV frame work in value.h" — they're inferring subsystem changes from mtimes alone.
 **Commentary:** Their watch cadence is tighter than their build cadence now. Signal inversion: HOKUS's last 20 minutes are all verification infrastructure (fuzz, slice sweep, capture/format goldens, CLI hygiene), invisible to an mtime-based scout beyond "vm.c hardened."
+
+## 2026-08-29 20:03 — quiet.
