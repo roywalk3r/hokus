@@ -21,15 +21,21 @@ static char *readFile(const char *path) {
         fprintf(stderr, "Could not open file \"%s\".\n", path);
         exit(65);
     }
-    fseek(file, 0L, SEEK_END);
-    size_t fileSize = ftell(file);
-    rewind(file);
-    char *buffer = malloc(fileSize + 1);
-    if (buffer == NULL || fread(buffer, sizeof(char), fileSize, file) != fileSize) {
+    size_t capacity = 4096, count = 0;
+    char *buffer = malloc(capacity);
+    size_t read;
+    while (buffer != NULL && (read = fread(buffer + count, 1, capacity - count, file)) > 0) {
+        count += read;
+        if (count == capacity) {
+            capacity *= 2;
+            buffer = realloc(buffer, capacity);
+        }
+    }
+    if (buffer == NULL || ferror(file)) {
         fprintf(stderr, "Could not read file \"%s\".\n", path);
         exit(74);
     }
-    buffer[fileSize] = '\0';
+    buffer[count] = '\0';
     fclose(file);
     return buffer;
 }
