@@ -53,6 +53,8 @@ done
 if [ -f web/hokus.wasm ]; then
     echo "== wasm gate =="
     node tests/wasm_runner.js web/hokus.wasm tests/golden || fail=1
+    echo "== fuzz gate =="
+    node tests/fuzz.js web/hokus.wasm || fail=1
 else
     echo "== wasm gate skipped (run: make wasm) =="
 fi
