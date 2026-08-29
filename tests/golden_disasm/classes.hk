@@ -1,0 +1,4 @@
+fun add(a, b) { return a + b; }
+class Pt { init(x) { this.x = x; } }
+print add(1, 2);
+print Pt(9).x;

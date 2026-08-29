@@ -49,6 +49,16 @@ for f in examples/*.hk; do
     fi
 done
 
+echo "== disassembler goldens =="
+for f in tests/golden_disasm/*.hk; do
+    name=$(basename "$f" .hk)
+    if $BIN --disasm "$f" > /tmp/hokus_out 2>&1 && diff -q "tests/golden_disasm/$name.expected" /tmp/hokus_out >/dev/null; then
+        echo "PASS disasm-$name"
+    else
+        echo "FAIL disasm-$name"; fail=1
+    fi
+done
+
 echo "== slice-equivalence tests =="
 for f in tests/golden/*.hk; do
     name=$(basename "$f" .hk)
