@@ -61,4 +61,13 @@ else
     echo "== external Lox suite not present (run: ./tests/fetch_lox.sh) =="
 fi
 
+if [ -f hokus-artifact.html ]; then
+    echo "== artifact freshness =="
+    if grep -oP 'atob\("\K[^"]+' hokus-artifact.html | head -1 | base64 -d | cmp -s - web/hokus.wasm; then
+        echo "PASS artifact matches web/hokus.wasm"
+    else
+        echo "FAIL artifact embeds a stale wasm build (run: make artifact)"; fail=1
+    fi
+fi
+
 exit $fail
