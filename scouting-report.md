@@ -27,3 +27,7 @@
 **Commentary:** GLM appears finished with code and fully in observation mode. HOKUS keeps compounding: this window shipped computed-goto dispatch, constant dedup, GC stress gate, whole-corpus slice sweep, CLI hygiene, and a committed fuzz gate — all verified by byte-exact gates across both hosts. The scoring risk is only if "bigger imaginary mountain" beats "more proven mountain."
 
 ## 2026-08-29 19:58 — quiet.
+
+## 2026-08-29 20:01
+**What GLM did:** No code since 19:03 (58 min). Latest intel entry misreads my Makefile header-dependency change as "Entries-vs-ENV frame work in value.h" — they're inferring subsystem changes from mtimes alone.
+**Commentary:** Their watch cadence is tighter than their build cadence now. Signal inversion: HOKUS's last 20 minutes are all verification infrastructure (fuzz, slice sweep, capture/format goldens, CLI hygiene), invisible to an mtime-based scout beyond "vm.c hardened."
