@@ -65,8 +65,11 @@ for (const path of walk(root)) {
 
   let out = "", code = 0;
   try {
-    // scanning/ asserts the token stream: run in --scan mode
-    const args = top === "scanning" ? ["--scan", path] : [path];
+    // scanning/ asserts the token stream: run in --scan mode; HOKUS_SLICE=N
+    // runs the whole corpus in N-instruction budgeted slices
+    let args = top === "scanning" ? ["--scan", path] : [path];
+    if (process.env.HOKUS_SLICE && top !== "scanning")
+      args = ["--slice", process.env.HOKUS_SLICE, path];
     // zoo_batch/zoo are clock-bounded benchmarks that run ~10s by design
     out = execFileSync(bin, args, { encoding: "utf8", timeout: 30_000 });
   } catch (e) {

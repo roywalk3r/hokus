@@ -66,6 +66,11 @@ else
     echo "== external Lox suite not present (run: ./tests/fetch_lox.sh) =="
 fi
 
+if [ -d "$LOX" ] && [ "${HOKUS_SLICE_SWEEP:-0}" = "1" ]; then
+    echo "== external Lox suite at --slice 17 =="
+    HOKUS_SLICE=17 node tests/lox_runner.js "$BIN" "$LOX" || fail=1
+fi
+
 if [ -f hokus-artifact.html ]; then
     echo "== artifact freshness =="
     if grep -oP 'atob\("\K[^"]+' hokus-artifact.html | head -1 | base64 -d | cmp -s - web/hokus.wasm; then
