@@ -37,15 +37,31 @@ typedef struct {
 } Upvalue;
 
 typedef struct Compiler Compiler;
+
+typedef enum {
+    TYPE_FUNCTION,
+    TYPE_INITIALIZER,
+    TYPE_METHOD,
+    TYPE_SCRIPT
+} FunctionType;
+
 struct Compiler {
     Compiler *enclosing;
     ObjFunction *function;
     Chunk *chunk;
+    FunctionType type;
     Local locals[256];
     int localCount;
     Upvalue upvalues[256];
     int scopeDepth;
 };
+
+typedef struct ClassCompiler {
+    struct ClassCompiler *enclosing;
+    bool hasSuperclass;
+} ClassCompiler;
+
+static ClassCompiler *currentClass = NULL;
 
 typedef void (*ParseFn)(Parser *, Compiler *, bool);
 
@@ -172,8 +188,10 @@ static void emitConstant(Parser *p, Value value) {
 
 /* ---- compiler scope management ---- */
 
-static void initCompiler(Compiler *compiler, Compiler *enclosing, const char *name, int nameLen) {
+static void initCompiler(Compiler *compiler, Compiler *enclosing,
+                         FunctionType type, const char *name, int nameLen) {
     compiler->enclosing = enclosing;
+    compiler->type = type;
     compiler->function = newFunction();
     compiler->chunk = HK_REALLOC(NULL, 0, sizeof(Chunk));
     initChunk(compiler->chunk);
@@ -182,11 +200,15 @@ static void initCompiler(Compiler *compiler, Compiler *enclosing, const char *na
     compiler->function->chunk = compiler->chunk;
     if (name != NULL) compiler->function->name = copyString(name, nameLen);
     current = compiler;
-    /* slot 0: the function itself (name "" for script/anon, own name for fns) */
+    /* slot 0: "this" for methods, the function itself for plain functions
+       (own name enables local recursion), "" for the script */
     Local *local = &current->locals[current->localCount++];
     local->depth = 0;
     local->isCaptured = false;
-    if (name != NULL) {
+    if (type != TYPE_FUNCTION && type != TYPE_SCRIPT) {
+        local->name.start = "this";
+        local->name.length = 4;
+    } else if (name != NULL) {
         local->name.start = name;
         local->name.length = nameLen;
     } else {
@@ -196,7 +218,13 @@ static void initCompiler(Compiler *compiler, Compiler *enclosing, const char *na
 }
 
 static ObjFunction *endCompiler(Parser *p) {
-    emitReturn(p);
+    if (current->type == TYPE_INITIALIZER) {
+        emitByte(p, OP_GET_LOCAL);
+        emitByte(p, 0);
+        emitByte(p, OP_RETURN);
+    } else {
+        emitReturn(p);
+    }
     ObjFunction *function = current->function;
     current = current->enclosing;
     return function;
@@ -460,6 +488,53 @@ static void grouping(Parser *p, Compiler *c, bool canAssign) {
     consume(p, TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
 }
 
+static void dot(Parser *p, Compiler *c, bool canAssign) {
+    (void)c;
+    consume(p, TOKEN_IDENTIFIER, "Expect property name after '.'.");
+    int name = identifierConstant(p, &p->previous);
+    if (canAssign && matchToken(p, TOKEN_EQUAL)) {
+        expression(p);
+        emitConstRef(p, OP_SET_PROPERTY, name);
+    } else {
+        emitConstRef(p, OP_GET_PROPERTY, name);
+    }
+}
+
+static void this_(Parser *p, Compiler *c, bool canAssign) {
+    (void)c; (void)canAssign;
+    if (currentClass == NULL) {
+        error(p, "Can't use 'this' outside of a class.");
+        return;
+    }
+    /* resolve through namedVariable so nested closures capture via upvalues */
+    Token thisTok = { .type = TOKEN_THIS, .start = "this",
+                      .length = 4, .line = p->previous.line };
+    namedVariable(p, thisTok, false);
+}
+
+static void super_(Parser *p, Compiler *c, bool canAssign) {
+    (void)c; (void)canAssign;
+    if (currentClass == NULL) {
+        error(p, "Can't use 'super' outside of a class.");
+        return;
+    }
+    if (!currentClass->hasSuperclass) {
+        error(p, "Can't use 'super' in a class with no superclass.");
+    }
+    consume(p, TOKEN_DOT, "Expect '.' after 'super'.");
+    consume(p, TOKEN_IDENTIFIER, "Expect superclass method name.");
+    int name = identifierConstant(p, &p->previous);
+    {
+        Token thisTok = { .type = TOKEN_THIS, .start = "this",
+                          .length = 4, .line = p->previous.line };
+        Token superTok = { .type = TOKEN_SUPER, .start = "super",
+                           .length = 5, .line = p->previous.line };
+        namedVariable(p, thisTok, false);
+        namedVariable(p, superTok, false);
+    }
+    emitConstRef(p, OP_GET_SUPER, name);
+}
+
 static void parsePrecedence(Parser *p, Precedence precedence) {
     advanceParser(p);
     ParseFn prefixRule = getRule(p->previous.type)->prefix;
@@ -509,7 +584,7 @@ static ParseRule rules[] = {
     [TOKEN_LEFT_BRACE]    = {NULL,     NULL,   PREC_NONE},
     [TOKEN_RIGHT_BRACE]   = {NULL,     NULL,   PREC_NONE},
     [TOKEN_COMMA]         = {NULL,     NULL,   PREC_NONE},
-    [TOKEN_DOT]           = {NULL,     NULL,   PREC_NONE},
+    [TOKEN_DOT]           = {NULL,     dot,    PREC_CALL},
     [TOKEN_MINUS]         = {unary,    binary, PREC_TERM},
     [TOKEN_PLUS]          = {NULL,     binary, PREC_TERM},
     [TOKEN_SEMICOLON]     = {NULL,     NULL,   PREC_NONE},
@@ -527,6 +602,7 @@ static ParseRule rules[] = {
     [TOKEN_STRING]        = {string,   NULL,   PREC_NONE},
     [TOKEN_NUMBER]        = {number,   NULL,   PREC_NONE},
     [TOKEN_AND]           = {NULL,     andOp,  PREC_AND},
+    [TOKEN_CLASS]         = {NULL,     NULL,   PREC_NONE},
     [TOKEN_ELSE]          = {NULL,     NULL,   PREC_NONE},
     [TOKEN_FALSE]         = {literal,  NULL,   PREC_NONE},
     [TOKEN_FOR]           = {NULL,     NULL,   PREC_NONE},
@@ -536,6 +612,8 @@ static ParseRule rules[] = {
     [TOKEN_OR]            = {NULL,     orOp,   PREC_OR},
     [TOKEN_PRINT]         = {NULL,     NULL,   PREC_NONE},
     [TOKEN_RETURN]        = {NULL,     NULL,   PREC_NONE},
+    [TOKEN_SUPER]         = {super_,   NULL,   PREC_NONE},
+    [TOKEN_THIS]          = {this_,    NULL,   PREC_NONE},
     [TOKEN_TRUE]          = {literal,  NULL,   PREC_NONE},
     [TOKEN_VAR]           = {NULL,     NULL,   PREC_NONE},
     [TOKEN_WHILE]         = {NULL,     NULL,   PREC_NONE},
@@ -554,9 +632,9 @@ static void block(Parser *p) {
     consume(p, TOKEN_RIGHT_BRACE, "Expect '}' after block.");
 }
 
-static void function(Parser *p) {
+static void function(Parser *p, FunctionType type) {
     Compiler compiler;
-    initCompiler(&compiler, current, p->previous.start, p->previous.length);
+    initCompiler(&compiler, current, type, p->previous.start, p->previous.length);
     beginScope();
     consume(p, TOKEN_LEFT_PAREN, "Expect '(' after function name.");
     if (!check(p, TOKEN_RIGHT_PAREN)) {
@@ -583,8 +661,64 @@ static void function(Parser *p) {
 static void funDeclaration(Parser *p) {
     int global = parseVariable(p, "Expect function name.");
     markInitialized();
-    function(p);
+    function(p, TYPE_FUNCTION);
     defineVariable(p, global);
+}
+
+static void method(Parser *p) {
+    consume(p, TOKEN_IDENTIFIER, "Expect method name.");
+    int constant = identifierConstant(p, &p->previous);
+    FunctionType type = TYPE_METHOD;
+    Token name = p->previous;
+    if (name.length == 4 && hk_strncmp(p->previous.start, "init", 4) == 0) {
+        type = TYPE_INITIALIZER;
+    }
+    function(p, type);
+    emitConstRef(p, OP_METHOD, constant);
+}
+
+static void classDeclaration(Parser *p) {
+    consume(p, TOKEN_IDENTIFIER, "Expect class name.");
+    Token className = p->previous;
+    int nameConstant = identifierConstant(p, &p->previous);
+    declareVariable(p, &className);
+
+    emitConstRef(p, OP_CLASS, nameConstant);
+    defineVariable(p, nameConstant);
+
+    ClassCompiler classCompiler;
+    classCompiler.hasSuperclass = false;
+    classCompiler.enclosing = currentClass;
+    currentClass = &classCompiler;
+
+    if (matchToken(p, TOKEN_LESS)) {
+        consume(p, TOKEN_IDENTIFIER, "Expect superclass name.");
+        namedVariable(p, p->previous, false);
+        if (identifiersEqual(&className, &p->previous)) {
+            error(p, "A class can't inherit from itself.");
+        }
+        beginScope();
+        Token superTok = { .type = TOKEN_SUPER, .start = "super",
+                           .length = 5, .line = p->previous.line };
+        addLocal(p, superTok);
+        defineVariable(p, 0);
+        namedVariable(p, className, false);
+        emitByte(p, OP_INHERIT);
+        classCompiler.hasSuperclass = true;
+    }
+
+    namedVariable(p, className, false);
+    consume(p, TOKEN_LEFT_BRACE, "Expect '{' before class body.");
+    while (!check(p, TOKEN_RIGHT_BRACE) && !check(p, TOKEN_EOF)) {
+        method(p);
+    }
+    consume(p, TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
+    emitByte(p, OP_POP);
+
+    if (classCompiler.hasSuperclass) {
+        endScope(p);
+    }
+    currentClass = classCompiler.enclosing;
 }
 
 static void varDeclaration(Parser *p) {
@@ -675,12 +809,21 @@ static void printStatement(Parser *p) {
 }
 
 static void returnStatement(Parser *p) {
-    if (current->enclosing == NULL) {
+    if (current->type == TYPE_SCRIPT) {
         error(p, "Can't return from top-level code.");
     }
     if (matchToken(p, TOKEN_SEMICOLON)) {
-        emitReturn(p);
+        if (current->type == TYPE_INITIALIZER) {
+            emitByte(p, OP_GET_LOCAL);
+            emitByte(p, 0);
+            emitByte(p, OP_RETURN);
+        } else {
+            emitReturn(p);
+        }
     } else {
+        if (current->type == TYPE_INITIALIZER) {
+            error(p, "Can't return a value from an initializer.");
+        }
         expression(p);
         consume(p, TOKEN_SEMICOLON, "Expect ';' after return value.");
         emitByte(p, OP_RETURN);
@@ -723,7 +866,9 @@ static void synchronize(Parser *p) {
 }
 
 static void declaration(Parser *p) {
-    if (matchToken(p, TOKEN_FUN)) {
+    if (matchToken(p, TOKEN_CLASS)) {
+        classDeclaration(p);
+    } else if (matchToken(p, TOKEN_FUN)) {
         funDeclaration(p);
     } else if (matchToken(p, TOKEN_VAR)) {
         varDeclaration(p);
@@ -736,7 +881,8 @@ static void declaration(Parser *p) {
 ObjFunction *compile(const char *source, int sourceLen) {
     (void)sourceLen;
     Compiler compiler;
-    initCompiler(&compiler, NULL, NULL, 0);
+    currentClass = NULL;
+    initCompiler(&compiler, NULL, TYPE_SCRIPT, NULL, 0);
     initLexer(&parser.lexer, source);
     parser.hadError = false;
     parser.panicMode = false;

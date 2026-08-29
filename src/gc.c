@@ -38,6 +38,16 @@ static void markChunkConstants(Chunk *chunk) {
     }
 }
 
+static void markTable(Table *table) {
+    for (int i = 0; i < table->capacity; i++) {
+        Entry *entry = &table->entries[i];
+        if (entry->key != NULL) {
+            markObject((Obj *)entry->key);
+            markValue(entry->value);
+        }
+    }
+}
+
 static void blacken(Obj *obj) {
     switch (obj->type) {
         case OBJ_STRING:
@@ -60,6 +70,24 @@ static void blacken(Obj *obj) {
             }
             break;
         }
+        case OBJ_CLASS: {
+            ObjClass *klass = (ObjClass *)obj;
+            markObject((Obj *)klass->name);
+            markTable(klass->methods);
+            break;
+        }
+        case OBJ_INSTANCE: {
+            ObjInstance *instance = (ObjInstance *)obj;
+            markObject((Obj *)instance->klass);
+            markTable(instance->fields);
+            break;
+        }
+        case OBJ_BOUND_METHOD: {
+            ObjBoundMethod *bound = (ObjBoundMethod *)obj;
+            markValue(bound->receiver);
+            markObject((Obj *)bound->method);
+            break;
+        }
     }
 }
 
@@ -75,6 +103,7 @@ static void markRoots(VM *vm) {
     for (int i = 0; i < vm->frameCount; i++) {
         markObject((Obj *)vm->frames[i].closure);
     }
+    if (vm->initString) markObject((Obj *)vm->initString);
     for (ObjUpvalue *upvalue = vm->openUpvalues; upvalue != NULL;
          upvalue = upvalue->next) {
         markObject((Obj *)upvalue);
@@ -122,6 +151,23 @@ static void freeObject(Obj *obj) {
         }
         case OBJ_UPVALUE:
             HK_FREE(obj, sizeof(ObjUpvalue));
+            break;
+        case OBJ_CLASS: {
+            ObjClass *klass = (ObjClass *)obj;
+            freeTable(klass->methods);
+            HK_FREE(klass->methods, sizeof(Table));
+            HK_FREE(klass, sizeof(ObjClass));
+            break;
+        }
+        case OBJ_INSTANCE: {
+            ObjInstance *instance = (ObjInstance *)obj;
+            freeTable(instance->fields);
+            HK_FREE(instance->fields, sizeof(Table));
+            HK_FREE(instance, sizeof(ObjInstance));
+            break;
+        }
+        case OBJ_BOUND_METHOD:
+            HK_FREE(obj, sizeof(ObjBoundMethod));
             break;
     }
 }

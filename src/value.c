@@ -1,5 +1,6 @@
 #include "value.h"
 #include "chunk.h"
+#include "table.h"
 
 static int hk_strlen(const char *s) {
     int n = 0;
@@ -123,6 +124,29 @@ ObjNative *newNative(NativeFn fn) {
     return native;
 }
 
+ObjClass *newClass(ObjString *name) {
+    ObjClass *klass = (ObjClass *)allocateObj(sizeof(ObjClass), OBJ_CLASS);
+    klass->name = name;
+    klass->methods = HK_REALLOC(NULL, 0, sizeof(Table));
+    initTable(klass->methods);
+    return klass;
+}
+
+ObjInstance *newInstance(ObjClass *klass) {
+    ObjInstance *instance = (ObjInstance *)allocateObj(sizeof(ObjInstance), OBJ_INSTANCE);
+    instance->klass = klass;
+    instance->fields = HK_REALLOC(NULL, 0, sizeof(Table));
+    initTable(instance->fields);
+    return instance;
+}
+
+ObjBoundMethod *newBoundMethod(Value receiver, ObjClosure *method) {
+    ObjBoundMethod *bound = (ObjBoundMethod *)allocateObj(sizeof(ObjBoundMethod), OBJ_BOUND_METHOD);
+    bound->receiver = receiver;
+    bound->method = method;
+    return bound;
+}
+
 /* Minimal freestanding %.14g: 14 significant digits, rounded, zeros trimmed. */
 void numberToString(double value, char *buf, int bufSize) {
     if (value != value) { hk_memcpy(buf, "nan", 4); return; }
@@ -214,6 +238,16 @@ void printValue(Value value) {
         case VAL_OBJ:
             if (IS_STRING(value)) {
                 hkEmit(AS_STRING(value)->chars); /* always null-terminated */
+            } else if (IS_CLASS(value)) {
+                hkEmit(AS_CLASS(value)->name->chars);
+            } else if (IS_INSTANCE(value)) {
+                hkEmit(AS_INSTANCE(value)->klass->name->chars);
+                hkEmit(" instance");
+            } else if (IS_BOUND_METHOD(value)) {
+                ObjFunction *f = AS_BOUND_METHOD(value)->method->function;
+                hkEmit("<fn ");
+                if (f->name) hkEmit(f->name->chars);
+                hkEmit(">");
             } else if (IS_NATIVE(value)) {
                 hkEmit("<native fn>");
             } else if (IS_CLOSURE(value)) {

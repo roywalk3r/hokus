@@ -34,6 +34,12 @@ typedef enum {
     OP_LOOP,
     OP_CALL,
     OP_RETURN,
+    OP_GET_PROPERTY,
+    OP_SET_PROPERTY,
+    OP_CLASS,
+    OP_METHOD,
+    OP_INHERIT,
+    OP_GET_SUPER,
 } OpCode;
 
 typedef struct Chunk {

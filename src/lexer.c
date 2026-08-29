@@ -86,9 +86,18 @@ static TokenType identifierType(Lexer *l) {
         case 'i': return checkKeyword(l, 1, 1, "f", TOKEN_IF);
         case 'n': return checkKeyword(l, 1, 2, "il", TOKEN_NIL);
         case 'o': return checkKeyword(l, 1, 1, "r", TOKEN_OR);
+        case 'c': return checkKeyword(l, 1, 4, "lass", TOKEN_CLASS);
         case 'p': return checkKeyword(l, 1, 4, "rint", TOKEN_PRINT);
         case 'r': return checkKeyword(l, 1, 5, "eturn", TOKEN_RETURN);
-        case 't': return checkKeyword(l, 1, 3, "rue", TOKEN_TRUE);
+        case 's': return checkKeyword(l, 1, 4, "uper", TOKEN_SUPER);
+        case 't':
+            if (l->current - l->start > 1) {
+                switch (l->start[1]) {
+                    case 'h': return checkKeyword(l, 2, 2, "is", TOKEN_THIS);
+                    case 'r': return checkKeyword(l, 2, 2, "ue", TOKEN_TRUE);
+                }
+            }
+            break;
         case 'v': return checkKeyword(l, 1, 2, "ar", TOKEN_VAR);
         case 'w': return checkKeyword(l, 1, 4, "hile", TOKEN_WHILE);
     }

@@ -20,6 +20,7 @@ typedef struct {
     Value *stackTop;
     Table globals;
     ObjUpvalue *openUpvalues;
+    ObjString *initString; /* cached "init" root for construction calls */
     bool hadRuntimeError;
 } VM;
 

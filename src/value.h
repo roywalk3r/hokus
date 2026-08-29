@@ -46,12 +46,24 @@ typedef struct {
 #define AS_NATIVE(v)    (((ObjNative *)(v).as.obj)->fn)
 #define IS_CLOSURE(v)   (IS_OBJ(v) && ((Obj *)(v).as.obj)->type == OBJ_CLOSURE)
 #define AS_CLOSURE(v)   ((ObjClosure *)(v).as.obj)
+#define IS_CLASS(v)     (IS_OBJ(v) && ((Obj *)(v).as.obj)->type == OBJ_CLASS)
+#define AS_CLASS(v)     ((ObjClass *)(v).as.obj)
+#define IS_INSTANCE(v)  (IS_OBJ(v) && ((Obj *)(v).as.obj)->type == OBJ_INSTANCE)
+#define AS_INSTANCE(v)  ((ObjInstance *)(v).as.obj)
+#define IS_BOUND_METHOD(v) (IS_OBJ(v) && ((Obj *)(v).as.obj)->type == OBJ_BOUND_METHOD)
+#define AS_BOUND_METHOD(v) ((ObjBoundMethod *)(v).as.obj)
 
-typedef enum { OBJ_STRING, OBJ_FUNCTION, OBJ_NATIVE, OBJ_CLOSURE, OBJ_UPVALUE } ObjType;
+typedef enum {
+    OBJ_STRING, OBJ_FUNCTION, OBJ_NATIVE, OBJ_CLOSURE, OBJ_UPVALUE,
+    OBJ_CLASS, OBJ_INSTANCE, OBJ_BOUND_METHOD,
+} ObjType;
 
 typedef Value (*NativeFn)(int argCount, Value *args);
 typedef struct ObjUpvalue ObjUpvalue;
 typedef struct ObjClosure ObjClosure;
+typedef struct ObjClass ObjClass;
+typedef struct ObjInstance ObjInstance;
+struct Table;
 
 struct Obj {
     ObjType type;
@@ -93,6 +105,25 @@ struct ObjClosure {
     int upvalueCount;
 };
 
+struct ObjClass {
+    Obj obj;
+    ObjString *name;
+    struct Table *methods; /* ObjString name -> ObjClosure */
+};
+
+struct ObjInstance {
+    Obj obj;
+    ObjClass *klass;
+    struct Table *fields;
+};
+
+struct ObjBoundMethod {
+    Obj obj;
+    Value receiver;
+    ObjClosure *method;
+};
+typedef struct ObjBoundMethod ObjBoundMethod;
+
 typedef struct {
     int count;
     int capacity;
@@ -111,6 +142,9 @@ ObjFunction *newFunction(void);
 ObjNative *newNative(NativeFn fn);
 ObjClosure *newClosure(ObjFunction *function);
 ObjUpvalue *newUpvalue(Value *slot);
+ObjClass *newClass(ObjString *name);
+ObjInstance *newInstance(ObjClass *klass);
+ObjBoundMethod *newBoundMethod(Value receiver, ObjClosure *method);
 
 /* Host-provided time source for the clock() native (seconds). */
 double hkClockSeconds(void);

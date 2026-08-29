@@ -12,14 +12,13 @@ const [bin, root] = process.argv.slice(2);
 
 // Directories whose semantics HOKUS deliberately does not implement.
 const SKIP_DIRS = new Set([
-  "class", "constructor", "field", "inheritance",
-  "method", "super", "this", "regression", "limit",
+  "regression", "limit",
   "scanning", // asserts the scanner's token dump — jlox-implementation-specific
 ]);
 
 // Feature tokens that place a file outside the subset.
 const UNSUPPORTED = [
-  /\bclass\b/, /\bthis\b/, /\bsuper\b/, /\bstatic\b/,
+  /\bstatic\b/,
 ];
 
 function* walk(dir) {
@@ -55,7 +54,8 @@ for (const path of walk(root)) {
 
   let out = "", code = 0;
   try {
-    out = execFileSync(bin, [path], { encoding: "utf8", timeout: 10_000 });
+    // zoo_batch/zoo are clock-bounded benchmarks that run ~10s by design
+    out = execFileSync(bin, [path], { encoding: "utf8", timeout: 30_000 });
   } catch (e) {
     code = e.status ?? 1;
     out = (e.stdout ?? "") + (e.stderr ?? "");

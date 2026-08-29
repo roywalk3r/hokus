@@ -8,7 +8,7 @@ typedef struct {
     Value value;
 } Entry;
 
-typedef struct {
+typedef struct Table {
     int count;
     int capacity;
     Entry *entries;
@@ -19,5 +19,6 @@ void freeTable(Table *table);
 bool tableGet(Table *table, ObjString *key, Value **valueOut);
 bool tableSet(Table *table, ObjString *key, Value value); /* true if new key */
 bool tableDelete(Table *table, ObjString *key);
+void tableAddAll(Table *from, Table *to);
 
 #endif

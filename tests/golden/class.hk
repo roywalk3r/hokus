@@ -1,0 +1,43 @@
+class Pair {}
+var pair = Pair();
+pair.first = 1;
+pair.second = 2;
+print pair.first + pair.second;
+
+class Greeter {
+  greet(name) { return "hi " + name; }
+}
+print Greeter().greet("you");
+
+class Counter {
+  init() { this.count = 0; }
+  bump() {
+    this.count = this.count + 1;
+    return this.count;
+  }
+}
+var c = Counter();
+c.bump();
+print c.bump();
+print c;
+
+class Base {
+  hello() { print "base hello"; }
+  describe() { return "I am " + this.tag(); }
+  tag() { return "base"; }
+}
+class Child < Base {
+  tag() { return "child"; }
+  hello() {
+    super.hello();
+    print "child hello";
+  }
+}
+var kid = Child();
+kid.hello();
+print kid.describe();
+
+class Widget {
+  init(w) { this.w = w; }
+}
+print Widget(42).w;

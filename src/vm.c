@@ -15,6 +15,7 @@ void initVM(VM *vm) {
     vm->hadRuntimeError = false;
     initTable(&vm->globals);
     objectsInit();
+    vm->initString = copyString("init", 4);
     resetVMStack(vm);
 }
 
@@ -51,6 +52,98 @@ void runtimeError(VM *vm, const char *message) {
 static void push(VM *vm, Value value) { *vm->stackTop = value; vm->stackTop++; }
 static Value pop(VM *vm) { vm->stackTop--; return *vm->stackTop; }
 static Value peek(VM *vm, int distance) { return vm->stackTop[-1 - distance]; }
+
+/* Message builders for arity errors must not clobber the sink mid-line, so
+   they use a static buffer and numberToString. */
+static void arityError(VM *vm, int expected, int got) {
+    char buf[96];
+    int n = 0;
+    const char *pre = "Expected ";
+    while (*pre) buf[n++] = *pre++;
+    numberToString(expected, buf + n, (int)sizeof(buf) - n - 24);
+    while (buf[n]) n++;
+    const char *mid = " arguments but got ";
+    while (*mid) buf[n++] = *mid++;
+    numberToString(got, buf + n, (int)sizeof(buf) - n - 4);
+    while (buf[n]) n++;
+    buf[n++] = '.'; buf[n] = '\0';
+    runtimeError(vm, buf);
+}
+
+static bool callClosure(VM *vm, ObjClosure *closure, int argCount,
+                        CallFrame **frameOut) {
+    if (argCount != closure->function->arity) {
+        arityError(vm, closure->function->arity, argCount);
+        return false;
+    }
+    if (vm->frameCount == FRAMES_MAX) {
+        runtimeError(vm, "Stack overflow.");
+        return false;
+    }
+    CallFrame *newFrame = &vm->frames[vm->frameCount++];
+    newFrame->closure = closure;
+    newFrame->ip = closure->function->chunk->code;
+    newFrame->slots = vm->stackTop - argCount - 1;
+    *frameOut = newFrame;
+    return true;
+}
+
+static bool callValue(VM *vm, int argCount, CallFrame **frameOut) {
+    Value callee = peek(vm, argCount);
+    if (IS_OBJ(callee)) {
+        switch (AS_OBJ(callee)->type) {
+            case OBJ_NATIVE: {
+                Value result = AS_NATIVE(callee)(argCount, vm->stackTop - argCount);
+                vm->stackTop -= argCount + 1; /* args + callee */
+                push(vm, result);
+                return true;
+            }
+            case OBJ_CLOSURE:
+                return callClosure(vm, AS_CLOSURE(callee), argCount, frameOut);
+            case OBJ_BOUND_METHOD: {
+                ObjBoundMethod *bound = AS_BOUND_METHOD(callee);
+                vm->stackTop[-argCount - 1] = bound->receiver; /* slot 0 = this */
+                return callClosure(vm, bound->method, argCount, frameOut);
+            }
+            case OBJ_CLASS: {
+                ObjClass *klass = AS_CLASS(callee);
+                vm->stackTop[-argCount - 1] = OBJ_VAL(newInstance(klass));
+                Value *initializer;
+                if (tableGet(klass->methods, vm->initString, &initializer)) {
+                    return callClosure(vm, AS_CLOSURE(*initializer), argCount, frameOut);
+                }
+                if (argCount != 0) {
+                    arityError(vm, 0, argCount);
+                    return false;
+                }
+                return true;
+            }
+            default:
+                break;
+        }
+    }
+    runtimeError(vm, "Can only call functions and classes.");
+    return false;
+}
+
+static bool bindMethod(VM *vm, ObjClass *klass, ObjString *name) {
+    Value *method;
+    if (!tableGet(klass->methods, name, &method)) {
+        char buf[96];
+        int n = 0;
+        const char *pre = "Undefined property '";
+        while (*pre) buf[n++] = *pre++;
+        for (int i = 0; i < name->length && n < 80; i++) buf[n++] = name->chars[i];
+        buf[n++] = '\''; buf[n++] = '.'; buf[n] = '\0';
+        runtimeError(vm, buf);
+        return false;
+    }
+    /* receiver is still on the stack during allocation, so the GC roots it */
+    ObjBoundMethod *bound = newBoundMethod(peek(vm, 0), AS_CLOSURE(*method));
+    pop(vm);
+    push(vm, OBJ_VAL(bound));
+    return true;
+}
 
 static bool isFalsey(Value value) {
     return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
@@ -228,31 +321,69 @@ static InterpretResult run(VM *vm) {
             }
             case OP_CALL: {
                 int argCount = READ_BYTE();
-                Value callee = peek(vm, argCount);
-                if (IS_NATIVE(callee)) {
-                    Value result = AS_NATIVE(callee)(argCount, vm->stackTop - argCount);
-                    vm->stackTop -= argCount + 1; /* args + callee */
-                    push(vm, result);
+                if (!callValue(vm, argCount, &frame)) {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                break;
+            }
+            case OP_CLASS: {
+                push(vm, OBJ_VAL(newClass(READ_STRING())));
+                break;
+            }
+            case OP_METHOD: {
+                ObjString *name = READ_STRING();
+                ObjClass *klass = AS_CLASS(peek(vm, 1));
+                tableSet(klass->methods, name, peek(vm, 0));
+                pop(vm); /* closure */
+                break;
+            }
+            case OP_INHERIT: {
+                if (!IS_CLASS(peek(vm, 1))) {
+                    runtimeError(vm, "Superclass must be a class.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                ObjClass *subclass = AS_CLASS(peek(vm, 0));
+                tableAddAll(AS_CLASS(peek(vm, 1))->methods, subclass->methods);
+                pop(vm); /* subclass */
+                break;
+            }
+            case OP_GET_PROPERTY: {
+                ObjString *name = READ_STRING();
+                if (!IS_INSTANCE(peek(vm, 0))) {
+                    runtimeError(vm, "Only instances have properties.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                ObjInstance *instance = AS_INSTANCE(peek(vm, 0));
+                Value *value;
+                if (tableGet(instance->fields, name, &value)) {
+                    pop(vm);
+                    push(vm, *value);
                     break;
                 }
-                if (!IS_CLOSURE(callee)) {
-                    runtimeError(vm, "Can only call functions.");
+                if (!bindMethod(vm, instance->klass, name)) {
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                ObjClosure *closure = AS_CLOSURE(callee);
-                if (argCount != closure->function->arity) {
-                    runtimeError(vm, "Wrong number of arguments.");
+                break;
+            }
+            case OP_SET_PROPERTY: {
+                ObjString *name = READ_STRING();
+                if (!IS_INSTANCE(peek(vm, 1))) {
+                    runtimeError(vm, "Only instances have fields.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                if (vm->frameCount == FRAMES_MAX) {
-                    runtimeError(vm, "Stack overflow.");
+                ObjInstance *instance = AS_INSTANCE(peek(vm, 1));
+                tableSet(instance->fields, name, peek(vm, 0));
+                Value value = pop(vm);
+                pop(vm);
+                push(vm, value);
+                break;
+            }
+            case OP_GET_SUPER: {
+                ObjString *name = READ_STRING();
+                ObjClass *superclass = AS_CLASS(pop(vm));
+                if (!bindMethod(vm, superclass, name)) {
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                CallFrame *newFrame = &vm->frames[vm->frameCount++];
-                newFrame->closure = closure;
-                newFrame->ip = closure->function->chunk->code;
-                newFrame->slots = vm->stackTop - argCount - 1;
-                frame = newFrame;
                 break;
             }
             case OP_RETURN: {
