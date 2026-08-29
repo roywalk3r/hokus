@@ -19,8 +19,9 @@ source ─► lexer ─► Pratt parser ─► single-pass bytecode compiler ─
 | Front end | `src/lexer.c`, `src/compiler.c` | Pratt parser, single-pass codegen, locals, jumps for `if`/`while`/`for`/`and`/`or` |
 | Tooling | `src/debug.c` | disassembler (`--disasm`) |
 | Native host | `src/main.c` | REPL + file runner |
-| Browser host | `src/wasm_shim.c` | bump allocator over a static 4 MB heap, output captured in a static buffer — **zero imports, zero emscripten** |
-| Webapp | `web/index.html` | playground; JS only shuttles bytes in/out, all logic is the C VM |
+| Browser host | `src/wasm_shim.c` | bump allocator over a static 16 MB heap, output captured in a static buffer — **zero imports, zero emscripten** |
+| Webapp | `web/index.html` | playground: source editor, live bytecode pane, execution trace, **step-through debugger**; JS only shuttles bytes in/out, all logic is the C VM |
+| GC | `src/gc.c` | mark-sweep over the VM's root set; the WASM arena sweeps by unlinking |
 
 ## Language
 
@@ -36,10 +37,11 @@ for (var i = 1; i <= 20; i = i + 1) {
 }
 ```
 
-Numbers (doubles), booleans, nil, strings with `+` concat; globals & block-scoped
-locals; `if/else`, `while`, `for`, `and`, `or`, `!`; first-class functions with
-recursion; `print`. Deviations from stock Lox: no classes, closures, natives,
-or string escapes (yet).
+Numbers (doubles), booleans, nil, strings with escapes and `+` concat; globals &
+block-scoped locals; `if/else`, `while`, `for`, `and`, `or`, `!`; first-class
+functions with recursion and **closures**; **classes** with methods, initializers,
+`this`, inheritance, and `super`; `print`; a `clock()` native. Deviations from
+stock Lox: no `static` methods (skipped in the corpus harness, loudly).
 
 ## Build & run
 
@@ -49,6 +51,9 @@ make wasm             # web/hokus.wasm — clang --target=wasm32, no stdlib, no 
 bin/hokus examples/fib.hk
 bin/hokus             # REPL
 bin/hokus -d examples/strings.hk   # disassembler
+bin/hokus -t examples/fib.hk       # execution trace
+bin/hokus -s examples/fib.hk       # token dump (jlox format)
+bin/hokus --slice 100 examples/fib.hk   # run in 100-instruction slices
 npm run playground    # serve web/ at http://localhost:8000
 ```
 
@@ -63,9 +68,16 @@ third-party suite that knows nothing about this implementation:
 make test
 ```
 
-Current: **60/60 in-subset tests pass**, 205 skipped with reasons reported
-(classes, closures, `clock`, REPL-semantics files with no `print` — the skip
-list is in `tests/lox_runner.js`, loud, not silent).
+Current: **247 passed, 14 smoke, 0 failed, 4 skipped** — the skips are documented
+divergences (16-bit constant pool by design; jlox REPL-semantics files). Scan-mode
+(`--scan`, jlox token-dump format) covers the corpus's `scanning/` chapter.
+
+The same `make test` also gates the **WASM boundary** (`tests/wasm_runner.js`):
+every golden program runs identically under raw WASM, and the exported API surface
+(`hk_run`, `hk_run_trace`, `hk_disasm`, `hk_prepare`/`hk_step`) is checked —
+including the property that budgeted step slices produce byte-identical output to
+a full run. Natively, `--slice N` runs any program in N-instruction budgeted
+slices, so the re-entrant interpreter is gated on both hosts.
 
 ## Design notes
 
@@ -76,6 +88,10 @@ list is in `tests/lox_runner.js`, loud, not silent).
 - **One output boundary.** `hkEmit` is a host-provided sink: `fputs` natively,
   a buffer the JS host drains in the browser. Compiler errors, runtime errors,
   and `print` all flow through it.
-- **No GC (yet).** Objects live for the VM's lifetime; the WASM arena is
-  reset per run. A mark-sweep collector over the shadow stack is the natural
-  next layer.
+- **Mark-sweep GC.** Collection runs against the active VM's stack, frames, and
+  globals; on the WASM host, sweeping only unlinks (the bump arena never frees),
+  reset wholesale between runs.
+- **Re-entrant interpreter.** All execution state lives in the `VM` struct, so the
+  run loop is `vmStart` + `vmRunSlice(budget)` — pause/resume at instruction
+  granularity. That's what makes the browser's step-through debugger a thin shell
+  over `hk_step`, not a separate interpreter.
