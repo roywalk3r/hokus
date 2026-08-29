@@ -1,60 +1,158 @@
 #include "debug.h"
 
-/* Native-only disassembler: libc printf is fine here. */
-#ifndef HK_WASM
-#include <stdio.h>
+/* Sink-based disassembler: works in both the native CLI and the WASM build,
+   since it writes through hkEmit instead of printf. */
 
-void disassembleChunk(Chunk *chunk, const char *name) {
-    printf("== %s ==\n", name);
-    for (int offset = 0; offset < chunk->count;) {
-        offset = disassembleInstruction(chunk, offset);
+static void emit(const char *s) { hkEmit(s); }
+
+static void emitInt(long long n) {
+    char buf[32];
+    numberToString((double)n, buf, sizeof(buf));
+    emit(buf);
+}
+
+static void emitPadded(const char *s, int width) {
+    emit(s);
+    int len = 0;
+    while (s[len]) len++;
+    while (len++ < width) emit(" ");
+}
+
+static void emitValueBrief(Value v) {
+    switch (v.type) {
+        case VAL_NIL: emit("nil"); break;
+        case VAL_BOOL: emit(AS_BOOL(v) ? "true" : "false"); break;
+        case VAL_NUMBER: {
+            char buf[32];
+            numberToString(AS_NUMBER(v), buf, sizeof(buf));
+            emit(buf);
+            break;
+        }
+        case VAL_OBJ:
+            if (IS_STRING(v)) {
+                emit("\"");
+                emit(AS_STRING(v)->chars);
+                emit("\"");
+            } else if (IS_FUNCTION(v)) {
+                ObjFunction *f = AS_FUNCTION(v);
+                emit("<fn ");
+                emit(f->name ? f->name->chars : "script");
+                emit(">");
+            } else {
+                emit("<obj>");
+            }
+            break;
     }
 }
 
+static void disassembleInner(Chunk *chunk, const char *name) {
+    emit("== ");
+    emit(name);
+    emit(" ==\n");
+    for (int offset = 0; offset < chunk->count;) {
+        offset = disassembleInstruction(chunk, offset);
+    }
+    for (int i = 0; i < chunk->constants.count; i++) {
+        Value v = chunk->constants.values[i];
+        if (IS_FUNCTION(v)) {
+            ObjFunction *f = AS_FUNCTION(v);
+            emit("\n");
+            disassembleInner(f->chunk, f->name ? f->name->chars : "<script>");
+        }
+    }
+}
+
+void disassembleChunk(Chunk *chunk, const char *name) {
+    disassembleInner(chunk, name);
+}
+
 static int simpleInstruction(const char *name, int offset) {
-    printf("%s\n", name);
+    emit(name);
+    emit("\n");
     return offset + 1;
 }
 
 static int constantInstruction(const char *name, Chunk *chunk, int offset) {
-    uint8_t constant = chunk->code[offset + 1];
-    printf("%-16s %4d ", name, constant);
-    /* printValue goes through hkEmit; use printf directly */
-    Value v = chunk->constants.values[constant];
-    switch (v.type) {
-        case VAL_NIL: printf("nil"); break;
-        case VAL_BOOL: printf(AS_BOOL(v) ? "true" : "false"); break;
-        case VAL_NUMBER: printf("%g", AS_NUMBER(v)); break;
-        case VAL_OBJ:
-            if (IS_STRING(v)) printf("\"%s\"", AS_STRING(v)->chars);
-            else if (IS_FUNCTION(v)) {
-                ObjFunction *f = AS_FUNCTION(v);
-                printf("<fn %s>", f->name ? f->name->chars : "script");
-            }
-            break;
-    }
-    printf("\n");
-    return offset + 2;
+    uint16_t constant = (uint16_t)((chunk->code[offset + 1] << 8) | chunk->code[offset + 2]);
+    emitPadded(name, 16);
+    emitPadded("", 4);
+    emitInt(constant);
+    emit(" ");
+    emitValueBrief(chunk->constants.values[constant]);
+    emit("\n");
+    return offset + 3;
 }
 
 static int byteInstruction(const char *name, Chunk *chunk, int offset) {
-    printf("%-16s %4d\n", name, chunk->code[offset + 1]);
+    emitPadded(name, 16);
+    emitPadded("", 4);
+    emitInt(chunk->code[offset + 1]);
+    emit("\n");
     return offset + 2;
 }
 
 static int jumpInstruction(const char *name, int sign, Chunk *chunk, int offset) {
     uint16_t jump = (uint16_t)((chunk->code[offset + 1] << 8) | chunk->code[offset + 2]);
-    printf("%-16s %4d -> %d\n", name, offset, offset + 3 + sign * jump);
+    emitPadded(name, 16);
+    emitPadded("", 4);
+    emitInt(offset);
+    emit(" -> ");
+    emitInt(offset + 3 + sign * jump);
+    emit("\n");
     return offset + 3;
 }
 
-int disassembleInstruction(Chunk *chunk, int offset) {
-    printf("%04d ", offset);
-    if (offset > 0 && chunk->lines[offset] == chunk->lines[offset - 1]) {
-        printf("   | ");
-    } else {
-        printf("%4d ", chunk->lines[offset]);
+static int closureInstruction(Chunk *chunk, int offset) {
+    uint16_t constant = (uint16_t)((chunk->code[offset + 1] << 8) | chunk->code[offset + 2]);
+    emitPadded("OP_CLOSURE", 16);
+    emitPadded("", 4);
+    emitInt(constant);
+    emit(" ");
+    Value v = chunk->constants.values[constant];
+    emitValueBrief(v);
+    emit("\n");
+    offset += 3;
+    int upvalues = IS_FUNCTION(v) ? AS_FUNCTION(v)->upvalueCount : 0;
+    for (int i = 0; i < upvalues; i++) {
+        int isLocal = chunk->code[offset];
+        int index = chunk->code[offset + 1];
+        emitPadded("", 8);
+        emit("| ");
+        emit(isLocal ? "local" : "upvalue");
+        emit(" ");
+        emitInt(index);
+        emit("\n");
+        offset += 2;
     }
+    return offset;
+}
+
+int disassembleInstruction(Chunk *chunk, int offset) {
+    char obuf[8];
+    int di = 0;
+    int o = offset;
+    char tmp[16]; int t = 0;
+    if (o == 0) obuf[di++] = '0';
+    while (o > 0) { tmp[t++] = (char)('0' + o % 10); o /= 10; }
+    while (t > 0) obuf[di++] = tmp[--t];
+    obuf[di] = '\0';
+    int padNeeded = 4 - di;
+    while (padNeeded-- > 0) emit(" ");
+    emit(obuf);
+    emit(" ");
+
+    if (offset > 0 && chunk->lines[offset] == chunk->lines[offset - 1]) {
+        emit("   | ");
+    } else {
+        char lbuf[16];
+        numberToString(chunk->lines[offset], lbuf, sizeof(lbuf));
+        int llen = 0; while (lbuf[llen]) llen++;
+        int lpad = 4 - llen;
+        while (lpad-- > 0) emit(" ");
+        emit(lbuf);
+        emit(" ");
+    }
+
     uint8_t instruction = chunk->code[offset];
     switch (instruction) {
         case OP_CONSTANT:      return constantInstruction("OP_CONSTANT", chunk, offset);
@@ -70,13 +168,7 @@ int disassembleInstruction(Chunk *chunk, int offset) {
         case OP_GET_UPVALUE:   return byteInstruction("OP_GET_UPVALUE", chunk, offset);
         case OP_SET_UPVALUE:   return byteInstruction("OP_SET_UPVALUE", chunk, offset);
         case OP_CLOSE_UPVALUE: return simpleInstruction("OP_CLOSE_UPVALUE", offset);
-        case OP_CLOSURE: {
-            uint8_t constant = chunk->code[offset + 1];
-            printf("%-16s %4d <fn>\n", "OP_CLOSURE", constant);
-            Value v = chunk->constants.values[constant];
-            int upvalues = IS_FUNCTION(v) ? AS_FUNCTION(v)->upvalueCount : 0;
-            return offset + 2 + upvalues * 2;
-        }
+        case OP_CLOSURE:       return closureInstruction(chunk, offset);
         case OP_EQUAL:         return simpleInstruction("OP_EQUAL", offset);
         case OP_GREATER:       return simpleInstruction("OP_GREATER", offset);
         case OP_LESS:          return simpleInstruction("OP_LESS", offset);
@@ -93,12 +185,8 @@ int disassembleInstruction(Chunk *chunk, int offset) {
         case OP_CALL:          return byteInstruction("OP_CALL", chunk, offset);
         case OP_RETURN:        return simpleInstruction("OP_RETURN", offset);
         default:
-            printf("Unknown opcode %d\n", instruction);
+            emit("<unknown opcode>");
+            emit("\n");
             return offset + 1;
     }
 }
-#else
-/* WASM build: disassembler omitted (needs printf); keep symbols for linking. */
-void disassembleChunk(Chunk *chunk, const char *name) { (void)chunk; (void)name; }
-int disassembleInstruction(Chunk *chunk, int offset) { (void)chunk; return offset; }
-#endif

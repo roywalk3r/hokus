@@ -1,0 +1,20 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - heading "HOKUS playground" [level=1] [ref=e3]
+    - paragraph [ref=e4]: A tiny language compiled to bytecode, running on a freestanding C VM — compiled to raw WASM, no emscripten, no JS interpreter.
+  - main [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - generic [ref=e8]: source.hk
+        - generic [ref=e9]:
+          - combobox [ref=e10]:
+            - option "examples…" [selected]
+            - option "fibonacci"
+            - option "fizzbuzz"
+            - option "strings"
+          - button "Run ▸" [ref=e11] [cursor=pointer]
+      - textbox [ref=e12]: "// fibonacci fun fib(n) { var a = 0; var b = 1; for (var i = 0; i < n; i = i + 1) { var t = a + b; a = b; b = t; } return a; } for (var i = 0; i < 15; i = i + 1) print fib(i);"
+    - generic [ref=e13]: bytecode
+    - generic [ref=e18]:
+      - generic [ref=e19]: vm output
+      - generic [ref=e20]: vm ready

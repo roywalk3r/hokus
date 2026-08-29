@@ -12,7 +12,7 @@ const [bin, root] = process.argv.slice(2);
 
 // Directories whose semantics HOKUS deliberately does not implement.
 const SKIP_DIRS = new Set([
-  "benchmark", "class", "constructor", "field", "inheritance",
+  "class", "constructor", "field", "inheritance",
   "method", "super", "this", "regression", "limit",
   "scanning", // asserts the scanner's token dump — jlox-implementation-specific
 ]);
@@ -30,7 +30,7 @@ function* walk(dir) {
   }
 }
 
-let pass = 0, fail = 0, skip = 0;
+let pass = 0, fail = 0, skip = 0, smoke = 0;
 const failures = [];
 
 for (const path of walk(root)) {
@@ -51,8 +51,7 @@ for (const path of walk(root)) {
     why = "no observable output (REPL-semantics test)";
   if (why) { skip++; continue; }
 
-  const expected = [...src.matchAll(/\/\/ expect: ?(.*)/g)]
-    .map((m) => m[1]).join("\n");
+  const expects = [...src.matchAll(/\/\/ expect: ?(.*)/g)].map((m) => m[1]);
 
   let out = "", code = 0;
   try {
@@ -62,15 +61,25 @@ for (const path of walk(root)) {
     out = (e.stdout ?? "") + (e.stderr ?? "");
   }
 
-  if (code === 0 && out.trimEnd() === expected.trimEnd()) {
+  if (expects.length === 0) {
+    // Smoke test: no output contract, but the program must not crash or error.
+    if (code === 0) smoke++;
+    else {
+      fail++;
+      failures.push({ rel, expected: "<exit 0>", out, code });
+    }
+    continue;
+  }
+
+  if (code === 0 && out.trimEnd() === expects.join("\n").trimEnd()) {
     pass++;
   } else {
     fail++;
-    failures.push({ rel, expected, out, code });
+    failures.push({ rel, expected: expects.join("\n"), out, code });
   }
 }
 
-console.log(`lox suite: ${pass} passed, ${fail} failed, ${skip} skipped (out of subset)`);
+console.log(`lox suite: ${pass} passed, ${smoke} smoke, ${fail} failed, ${skip} skipped (out of subset)`);
 for (const f of failures.slice(0, 10)) {
   console.log(`\nFAIL ${f.rel} (exit ${f.code})`);
   console.log("  expected:", JSON.stringify(f.expected.slice(0, 200)));

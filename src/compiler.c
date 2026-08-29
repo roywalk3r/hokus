@@ -151,17 +151,23 @@ static void emitReturn(Parser *p) {
     emitByte(p, OP_RETURN);
 }
 
-static uint8_t makeConstant(Parser *p, Value value) {
+static int makeConstant(Parser *p, Value value) {
     int constant = addConstant(currentChunk(), value);
-    if (constant > UINT8_MAX) {
+    if (constant > UINT16_MAX) {
         error(p, "Too many constants in one chunk.");
         return 0;
     }
-    return (uint8_t)constant;
+    return constant;
+}
+
+static void emitConstRef(Parser *p, uint8_t op, int constant) {
+    emitByte(p, op);
+    emitByte(p, (constant >> 8) & 0xff);
+    emitByte(p, constant & 0xff);
 }
 
 static void emitConstant(Parser *p, Value value) {
-    emitBytes(p, OP_CONSTANT, makeConstant(p, value));
+    emitConstRef(p, OP_CONSTANT, makeConstant(p, value));
 }
 
 /* ---- compiler scope management ---- */
@@ -220,7 +226,7 @@ static ParseRule *getRule(TokenType type);
 static void parsePrecedence(Parser *p, Precedence precedence);
 
 /* identifiers */
-static uint8_t identifierConstant(Parser *p, Token *name) {
+static int identifierConstant(Parser *p, Token *name) {
     return makeConstant(p, OBJ_VAL(copyString(name->start, name->length)));
 }
 
@@ -290,16 +296,16 @@ static void declareVariable(Parser *p, Token *name) {
     addLocal(p, *name);
 }
 
-static uint8_t parseVariable(Parser *p, const char *errorMessage) {
+static int parseVariable(Parser *p, const char *errorMessage) {
     consume(p, TOKEN_IDENTIFIER, errorMessage);
     declareVariable(p, &p->previous);
     if (current->scopeDepth > 0) return 0;
     return identifierConstant(p, &p->previous);
 }
 
-static void defineVariable(Parser *p, uint8_t global) {
+static void defineVariable(Parser *p, int global) {
     if (current->scopeDepth > 0) return; /* local: already on stack */
-    emitBytes(p, OP_DEFINE_GLOBAL, global);
+    emitConstRef(p, OP_DEFINE_GLOBAL, global);
 }
 
 static void markInitialized(void) {
@@ -424,9 +430,11 @@ static void namedVariable(Parser *p, Token name, bool canAssign) {
     }
     if (canAssign && matchToken(p, TOKEN_EQUAL)) {
         expression(p);
-        emitBytes(p, setOp, (uint8_t)arg);
+        if (setOp == OP_SET_GLOBAL) emitConstRef(p, setOp, arg);
+        else emitBytes(p, setOp, (uint8_t)arg);
     } else {
-        emitBytes(p, getOp, (uint8_t)arg);
+        if (getOp == OP_GET_GLOBAL) emitConstRef(p, getOp, arg);
+        else emitBytes(p, getOp, (uint8_t)arg);
     }
 }
 
@@ -557,7 +565,7 @@ static void function(Parser *p) {
             if (current->function->arity > 255) {
                 errorAtCurrent(p, "Can't have more than 255 parameters.");
             }
-            uint8_t constant = parseVariable(p, "Expect parameter name.");
+            int constant = parseVariable(p, "Expect parameter name.");
             defineVariable(p, constant);
         } while (matchToken(p, TOKEN_COMMA));
     }
@@ -565,7 +573,7 @@ static void function(Parser *p) {
     consume(p, TOKEN_LEFT_BRACE, "Expect '{' before function body.");
     block(p);
     ObjFunction *fn = endCompiler(p);
-    emitBytes(p, OP_CLOSURE, makeConstant(p, OBJ_VAL(fn)));
+    emitConstRef(p, OP_CLOSURE, makeConstant(p, OBJ_VAL(fn)));
     for (int i = 0; i < fn->upvalueCount; i++) {
         emitByte(p, compiler.upvalues[i].isLocal ? 1 : 0);
         emitByte(p, compiler.upvalues[i].index);
@@ -573,14 +581,14 @@ static void function(Parser *p) {
 }
 
 static void funDeclaration(Parser *p) {
-    uint8_t global = parseVariable(p, "Expect function name.");
+    int global = parseVariable(p, "Expect function name.");
     markInitialized();
     function(p);
     defineVariable(p, global);
 }
 
 static void varDeclaration(Parser *p) {
-    uint8_t global = parseVariable(p, "Expect variable name.");
+    int global = parseVariable(p, "Expect variable name.");
     if (matchToken(p, TOKEN_EQUAL)) {
         expression(p);
     } else {

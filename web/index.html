@@ -25,7 +25,7 @@
   h1 .k { color: var(--accent); }
   header p { margin: .25rem 0 0; color: var(--dim); font-size: .85rem; }
   main {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;
     padding: 1rem 1.5rem 1.5rem; height: calc(100vh - 5.5rem);
   }
   @media (max-width: 800px) { main { grid-template-columns: 1fr; height: auto; } }
@@ -73,6 +73,10 @@
     <textarea id="src" spellcheck="false">// loading wasm…</textarea>
   </div>
   <div class="pane">
+    <div class="bar"><span>bytecode</span><span id="bcStatus"></span></div>
+    <pre id="bc"></pre>
+  </div>
+  <div class="pane">
     <div class="bar"><span>vm output</span><span id="status"></span></div>
     <pre id="out"></pre>
   </div>
@@ -114,6 +118,8 @@ const srcEl = document.getElementById("src");
 const outEl = document.getElementById("out");
 const statusEl = document.getElementById("status");
 const runBtn = document.getElementById("run");
+const bcEl = document.getElementById("bc");
+const bcStatusEl = document.getElementById("bcStatus");
 
 let vm = null;
 
@@ -131,25 +137,37 @@ document.getElementById("example").addEventListener("change", e => {
   if (EXAMPLES[e.target.value]) srcEl.value = EXAMPLES[e.target.value];
 });
 
+function loadSource(src) {
+  const mem = new Uint8Array(vm.memory.buffer);
+  const bytes = new TextEncoder().encode(src);
+  const n = Math.min(bytes.length, vm.hk_source_capacity() - 1);
+  mem.set(bytes.subarray(0, n), vm.hk_source_buffer());
+  return n;
+}
+function readOutput() {
+  // re-slice after every call: the run may have grown memory
+  return new TextDecoder().decode(new Uint8Array(
+      vm.memory.buffer, vm.hk_output(), vm.hk_output_length()));
+}
+
 runBtn.addEventListener("click", () => {
   if (!vm) return;
   const src = srcEl.value;
-  const mem = new Uint8Array(vm.memory.buffer);
-  const cap = vm.hk_source_capacity();
-  const buf = vm.hk_source_buffer();
-  const bytes = new TextEncoder().encode(src);
-  const n = Math.min(bytes.length, cap - 1);
-  mem.set(bytes.subarray(0, n), buf);
+
+  const runLen = loadSource(src);
   const t0 = performance.now();
-  const status = vm.hk_run(n);
+  const status = vm.hk_run(runLen);
   const ms = (performance.now() - t0).toFixed(1);
-  // hk_run may have grown memory; re-slice
-  const outBytes = new Uint8Array(vm.memory.buffer,
-      vm.hk_output(), vm.hk_output_length());
-  outEl.textContent = new TextDecoder().decode(outBytes);
+  outEl.textContent = readOutput();
   statusEl.textContent =
       (status === 0 ? "ok" : status === 1 ? "compile error" : "runtime error")
       + ` · ${ms} ms`;
+
+  const drc = vm.hk_disasm(loadSource(src));
+  bcEl.textContent = drc === 0
+      ? readOutput()
+      : "(compile error — no bytecode)\n\n" + readOutput();
+  bcStatusEl.textContent = drc === 0 ? "disassembled" : "";
 });
 </script>
 </body>

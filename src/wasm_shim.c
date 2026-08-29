@@ -3,6 +3,8 @@
 #ifdef HK_WASM
 
 #include "vm.h"
+#include "compiler.h"
+#include "debug.h"
 
 #define HEAP_SIZE (16 * 1024 * 1024)
 #define OUT_SIZE  (256 * 1024)
@@ -66,5 +68,20 @@ int hk_run(int sourceLength) {
 
 char *hk_output(void) { return outBuf; }
 int hk_output_length(void) { return outLen; }
+
+/* Compile-only: emits the bytecode listing to the output buffer.
+   Returns 0 on success, 65 on compile error. */
+int hk_disasm(int sourceLength) {
+    heapUsed = 0;
+    outLen = 0;
+    srcBuf[sourceLength < SRC_SIZE ? sourceLength : SRC_SIZE - 1] = '\0';
+    hkEmit = bufferEmit;
+    ObjFunction *fn = compile(srcBuf, sourceLength);
+    outBuf[outLen] = '\0';
+    if (fn == NULL) return 65;
+    disassembleChunk(fn->chunk, "web");
+    outBuf[outLen] = '\0';
+    return 0;
+}
 
 #endif
