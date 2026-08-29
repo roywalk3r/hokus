@@ -92,6 +92,18 @@ int main(int argc, char **argv) {
         } else if (strcmp(argv[i], "--slice") == 0 && i + 1 < argc) {
             slice = atoi(argv[++i]);
             if (slice < 1) slice = 1;
+        } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            fprintf(stderr,
+                "usage: hokus [flags] [script.hk]\n"
+                "  (no script)      REPL\n"
+                "  -d, --disasm     compile and print bytecode listing\n"
+                "  -t, --trace      print each instruction as it executes\n"
+                "  -s, --scan       token dump (jlox format), no execution\n"
+                "  --slice N        execute in N-instruction budgeted slices\n");
+            return 0;
+        } else if (argv[i][0] == '-') {
+            fprintf(stderr, "hokus: unknown flag '%s' (try --help)\n", argv[i]);
+            return 64;
         } else {
             path = argv[i];
         }
