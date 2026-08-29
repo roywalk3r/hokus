@@ -55,6 +55,16 @@ for (const f of readdirSync(goldenDir).filter((f) => f.endsWith(".hk"))) {
     JSON.stringify(out.slice(0, 120)));
 }
 
+// 3b. method-call sites compile to OP_INVOKE; super calls to OP_SUPER_INVOKE
+{
+  const code = vm.hk_disasm(load(
+    "class A { m(x) { return x; } } class B < A { go(a) { a.m(1); return super.m(2); } }"));
+  const out = read();
+  check("invoke opcodes", code === 0 &&
+    out.includes("OP_INVOKE") && out.includes("OP_SUPER_INVOKE"),
+    JSON.stringify(out.slice(0, 200)));
+}
+
 // 4. step API: sliced execution produces identical output to a full run
 {
   const src = "for (var i = 0; i < 10; i = i + 1) print i * i;";
