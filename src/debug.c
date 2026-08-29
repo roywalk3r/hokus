@@ -142,14 +142,10 @@ static int closureInstruction(Chunk *chunk, int offset) {
 }
 
 int disassembleInstruction(Chunk *chunk, int offset) {
-    char obuf[8];
+    char obuf[16];
+    numberToString(offset, obuf, sizeof(obuf));
     int di = 0;
-    int o = offset;
-    char tmp[16]; int t = 0;
-    if (o == 0) obuf[di++] = '0';
-    while (o > 0) { tmp[t++] = (char)('0' + o % 10); o /= 10; }
-    while (t > 0) obuf[di++] = tmp[--t];
-    obuf[di] = '\0';
+    while (obuf[di]) di++;
     int padNeeded = 4 - di;
     while (padNeeded-- > 0) emit(" ");
     emit(obuf);

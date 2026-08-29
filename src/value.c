@@ -231,8 +231,9 @@ bool valuesEqual(Value a, Value b) {
         case VAL_OBJ: {
             if (IS_STRING(a)) {
                 ObjString *sa = AS_STRING(a), *sb = AS_STRING(b);
-                return sa->length == sb->length && sa->hash == sb->hash &&
-                       hk_strncmp(sa->chars, sb->chars, sa->length) == 0;
+                return sa == sb ||
+                       (sa->length == sb->length && sa->hash == sb->hash &&
+                        hk_strncmp(sa->chars, sb->chars, sa->length) == 0);
             }
             return AS_OBJ(a) == AS_OBJ(b);
         }
