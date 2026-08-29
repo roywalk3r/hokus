@@ -24,11 +24,6 @@ const SKIP_FILES = new Map([
   ["expressions/parse.lox", "REPL-semantics test"],
 ]);
 
-// Feature tokens that place a file outside the subset.
-const UNSUPPORTED = [
-  /\bstatic\b/,
-];
-
 function* walk(dir) {
   for (const entry of readdirSync(dir)) {
     const p = join(dir, entry);
@@ -58,8 +53,6 @@ for (const path of walk(root)) {
 
   let why = null;
   if (SKIP_FILES.has(rel)) why = SKIP_FILES.get(rel);
-  else if (UNSUPPORTED.some((re) => re.test(src) || re.test(rel)))
-    why = "unsupported feature";
   if (why) { skip++; continue; }
 
   const expects = [...src.matchAll(/\/\/ expect: ?(.*)/g)].map((m) => m[1]);
