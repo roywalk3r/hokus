@@ -1,3 +1,4 @@
+/* HOKUS — freestanding Lox-class bytecode VM. MIT License; see LICENSE. */
 #include "chunk.h"
 #include "gc.h"
 

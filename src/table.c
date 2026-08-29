@@ -1,3 +1,4 @@
+/* HOKUS — freestanding Lox-class bytecode VM. MIT License; see LICENSE. */
 #include "table.h"
 
 #define TABLE_MAX_LOAD 0.75

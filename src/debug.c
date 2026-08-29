@@ -1,3 +1,4 @@
+/* HOKUS — freestanding Lox-class bytecode VM. MIT License; see LICENSE. */
 #include "debug.h"
 
 /* Sink-based disassembler: works in both the native CLI and the WASM build,

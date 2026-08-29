@@ -1,3 +1,4 @@
+/* HOKUS — freestanding Lox-class bytecode VM. MIT License; see LICENSE. */
 #ifndef hokus_value_h
 #define hokus_value_h
 

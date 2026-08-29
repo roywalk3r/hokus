@@ -107,3 +107,7 @@ slices, so the re-entrant interpreter is gated on both hosts.
   run loop is `vmStart` + `vmRunSlice(budget)` — pause/resume at instruction
   granularity. That's what makes the browser's step-through debugger a thin shell
   over `hk_step`, not a separate interpreter.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
