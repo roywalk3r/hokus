@@ -333,7 +333,33 @@ static void number(Parser *p, Compiler *c, bool canAssign) {
 
 static void string(Parser *p, Compiler *c, bool canAssign) {
     (void)c; (void)canAssign;
-    emitConstant(p, OBJ_VAL(copyString(p->previous.start + 1, p->previous.length - 2)));
+    /* token span includes both quotes; unescape into a temp buffer */
+    const char *raw = p->previous.start + 1;
+    int rawLen = p->previous.length - 2;
+    char *buf = HK_REALLOC(NULL, 0, rawLen + 1);
+    int n = 0;
+    bool bad = false;
+    for (int i = 0; i < rawLen; i++) {
+        if (raw[i] == '\\' && i + 1 < rawLen) {
+            i++;
+            switch (raw[i]) {
+                case 'n':  buf[n++] = '\n'; break;
+                case 't':  buf[n++] = '\t'; break;
+                case 'r':  buf[n++] = '\r'; break;
+                case '"':  buf[n++] = '"'; break;
+                case '\\': buf[n++] = '\\'; break;
+                case '0':  buf[n++] = '\0'; break;
+                default:
+                    error(p, "Unknown escape sequence.");
+                    bad = true;
+                    break;
+            }
+        } else {
+            buf[n++] = raw[i];
+        }
+    }
+    buf[n] = '\0';
+    if (!bad) emitConstant(p, OBJ_VAL(takeString(buf, n)));
 }
 
 static void namedVariable(Parser *p, Token name, bool canAssign) {

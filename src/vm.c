@@ -171,6 +171,12 @@ static InterpretResult run(VM *vm) {
             case OP_CALL: {
                 int argCount = READ_BYTE();
                 Value callee = peek(vm, argCount);
+                if (IS_NATIVE(callee)) {
+                    Value result = AS_NATIVE(callee)(argCount, vm->stackTop - argCount);
+                    vm->stackTop -= argCount + 1; /* args + callee */
+                    push(vm, result);
+                    break;
+                }
                 if (!IS_FUNCTION(callee)) {
                     runtimeError(vm, "Can only call functions.");
                     return INTERPRET_RUNTIME_ERROR;
@@ -214,7 +220,14 @@ static InterpretResult run(VM *vm) {
 #undef BINARY_OP
 }
 
+static Value clockNative(int argCount, Value *args) {
+    (void)argCount; (void)args;
+    return NUMBER_VAL(hkClockSeconds());
+}
+
 InterpretResult interpret(VM *vm, const char *source, int sourceLen) {
+    tableSet(&vm->globals, copyString("clock", 5),
+             OBJ_VAL(newNative(clockNative)));
     ObjFunction *function = compile(source, sourceLen);
     if (function == NULL) return INTERPRET_COMPILE_ERROR;
 

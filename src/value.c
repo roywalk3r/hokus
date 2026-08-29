@@ -86,6 +86,12 @@ ObjFunction *newFunction(void) {
     return fn;
 }
 
+ObjNative *newNative(NativeFn fn) {
+    ObjNative *native = (ObjNative *)allocateObj(sizeof(ObjNative), OBJ_NATIVE);
+    native->fn = fn;
+    return native;
+}
+
 /* Minimal freestanding %.14g: 14 significant digits, rounded, zeros trimmed. */
 void numberToString(double value, char *buf, int bufSize) {
     if (value != value) { hk_memcpy(buf, "nan", 4); return; }
@@ -131,9 +137,9 @@ void numberToString(double value, char *buf, int bufSize) {
         buf[i++] = '0';
     } else {
         while (ip > 0) { tmp[t++] = (char)('0' + ip % 10); ip /= 10; }
-        while (t > 0 && i < bufSize - 24) buf[i++] = tmp[--t];
+        while (t > 0 && i + m + 2 < bufSize) buf[i++] = tmp[--t];
     }
-    if (m > 0 && i < bufSize - 24) {
+    if (m > 0 && i + m + 2 < bufSize) {
         buf[i++] = '.';
         for (int k = 0; k < m; k++) buf[i++] = fd[k];
     }
@@ -177,6 +183,8 @@ void printValue(Value value) {
         case VAL_OBJ:
             if (IS_STRING(value)) {
                 hkEmit(AS_STRING(value)->chars); /* always null-terminated */
+            } else if (IS_NATIVE(value)) {
+                hkEmit("<native fn>");
             } else if (IS_FUNCTION(value)) {
                 ObjFunction *f = AS_FUNCTION(value);
                 if (f->name) {

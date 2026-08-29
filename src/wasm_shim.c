@@ -34,6 +34,10 @@ void *hk_realloc_bump(void *ptr, size_t oldSize, size_t newSize) {
     return fresh;
 }
 
+/* No wall clock in the freestanding build: count runs as virtual seconds. */
+static double virtualClock;
+double hkClockSeconds(void) { return virtualClock / 1000.0; }
+
 static void bufferEmit(const char *s) {
     while (*s && outLen < OUT_SIZE - 2) outBuf[outLen++] = *s++;
 }
@@ -46,6 +50,7 @@ int hk_source_capacity(void) { return SRC_SIZE; }
 int hk_run(int sourceLength) {
     heapUsed = 0;
     outLen = 0;
+    virtualClock += 1;
     srcBuf[sourceLength < SRC_SIZE ? sourceLength : SRC_SIZE - 1] = '\0';
     hkEmit = bufferEmit;
     initVM(&theVM);

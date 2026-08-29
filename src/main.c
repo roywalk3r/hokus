@@ -11,6 +11,9 @@
 
 static void stdoutEmit(const char *s) { fputs(s, stdout); }
 
+#include <time.h>
+double hkClockSeconds(void) { return (double)clock() / (double)CLOCKS_PER_SEC; }
+
 static char *readFile(const char *path) {
     FILE *file = fopen(path, "rb");
     if (file == NULL) {

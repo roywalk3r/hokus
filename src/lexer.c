@@ -107,6 +107,11 @@ static Token number(Lexer *l) {
 static Token string(Lexer *l) {
     while (peekCh(l) != '"' && !isAtEnd(l)) {
         if (peekCh(l) == '\n') l->line++;
+        if (peekCh(l) == '\\' && peekNext(l) != '\0') {
+            advance(l); /* backslash — swallow the escaped char with it */
+            advance(l);
+            continue;
+        }
         advance(l);
     }
     if (isAtEnd(l)) return errorToken(l, "Unterminated string.");

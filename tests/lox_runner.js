@@ -19,9 +19,8 @@ const SKIP_DIRS = new Set([
 
 // Feature tokens that place a file outside the subset.
 const UNSUPPORTED = [
-  /\bclass\b/, /\bthis\b/, /\bsuper\b/, /\bstatic\b/, /\bclock\b/,
+  /\bclass\b/, /\bthis\b/, /\bsuper\b/, /\bstatic\b/,
   /closure/i, /local_recursion/, // closures not in HOKUS subset
-  /\\[\\"nrt]/, // string escapes not in subset
 ];
 
 function* walk(dir) {

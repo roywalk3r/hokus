@@ -1,2 +1,5 @@
 bin/
 tests/external/
+.omc/
+.claude/
+.remember/

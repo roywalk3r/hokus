@@ -6,6 +6,7 @@
 typedef struct Obj Obj;
 typedef struct ObjString ObjString;
 typedef struct ObjFunction ObjFunction;
+typedef struct ObjNative ObjNative;
 struct Chunk;
 
 typedef enum {
@@ -41,12 +42,21 @@ typedef struct {
 #define AS_OBJ(v)       ((v).as.obj)
 #define AS_STRING(v)    ((ObjString *)(v).as.obj)
 #define AS_FUNCTION(v)  ((ObjFunction *)(v).as.obj)
+#define IS_NATIVE(v)    (IS_OBJ(v) && ((Obj *)(v).as.obj)->type == OBJ_NATIVE)
+#define AS_NATIVE(v)    (((ObjNative *)(v).as.obj)->fn)
 
-typedef enum { OBJ_STRING, OBJ_FUNCTION } ObjType;
+typedef enum { OBJ_STRING, OBJ_FUNCTION, OBJ_NATIVE } ObjType;
+
+typedef Value (*NativeFn)(int argCount, Value *args);
 
 struct Obj {
     ObjType type;
     Obj *next;
+};
+
+struct ObjNative {
+    Obj obj;
+    NativeFn fn;
 };
 
 struct ObjString {
@@ -78,6 +88,10 @@ void objectsInit(void);
 ObjString *copyString(const char *chars, int length);
 ObjString *takeString(char *chars, int length);
 ObjFunction *newFunction(void);
+ObjNative *newNative(NativeFn fn);
+
+/* Host-provided time source for the clock() native (seconds). */
+double hkClockSeconds(void);
 
 bool valuesEqual(Value a, Value b);
 int hk_strncmp(const char *a, const char *b, int n);
