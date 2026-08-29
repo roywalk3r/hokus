@@ -39,6 +39,15 @@ for f in tests/golden_errors/*.err.hk; do
     fi
 done
 
+echo "== examples run clean =="
+for f in examples/*.hk; do
+    if $BIN "$f" >/dev/null 2>&1; then
+        echo "PASS $(basename "$f")"
+    else
+        echo "FAIL $f"; fail=1
+    fi
+done
+
 echo "== slice-equivalence tests =="
 for f in tests/golden/*.hk; do
     name=$(basename "$f" .hk)
