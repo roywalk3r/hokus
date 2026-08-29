@@ -1,0 +1,19 @@
+{
+  var f1; var f2;
+  for (var i = 0; i < 2; i = i + 1) {
+    var local = i * 10;
+    fun cap() { return local; }
+    if (i == 0) f1 = cap; else f2 = cap;
+  }
+  print f1();
+  print f2();
+}
+fun makeCounter() {
+  var n = 0;
+  fun inc() { n = n + 1; return n; }
+  return inc;
+}
+var c1 = makeCounter();
+var c2 = makeCounter();
+print c1(); print c1(); print c1();
+print c2();
