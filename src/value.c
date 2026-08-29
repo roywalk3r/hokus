@@ -81,9 +81,29 @@ ObjString *copyString(const char *chars, int length) {
 ObjFunction *newFunction(void) {
     ObjFunction *fn = (ObjFunction *)allocateObj(sizeof(ObjFunction), OBJ_FUNCTION);
     fn->arity = 0;
+    fn->upvalueCount = 0;
     fn->chunk = NULL;
     fn->name = NULL;
     return fn;
+}
+
+ObjUpvalue *newUpvalue(Value *slot) {
+    ObjUpvalue *upvalue = (ObjUpvalue *)allocateObj(sizeof(ObjUpvalue), OBJ_UPVALUE);
+    upvalue->location = slot;
+    upvalue->closed = NIL_VAL;
+    upvalue->next = NULL;
+    return upvalue;
+}
+
+ObjClosure *newClosure(ObjFunction *function) {
+    ObjUpvalue **upvalues = HK_REALLOC(NULL, 0,
+                                       sizeof(ObjUpvalue *) * function->upvalueCount);
+    for (int i = 0; i < function->upvalueCount; i++) upvalues[i] = NULL;
+    ObjClosure *closure = (ObjClosure *)allocateObj(sizeof(ObjClosure), OBJ_CLOSURE);
+    closure->function = function;
+    closure->upvalues = upvalues;
+    closure->upvalueCount = function->upvalueCount;
+    return closure;
 }
 
 ObjNative *newNative(NativeFn fn) {
@@ -185,6 +205,15 @@ void printValue(Value value) {
                 hkEmit(AS_STRING(value)->chars); /* always null-terminated */
             } else if (IS_NATIVE(value)) {
                 hkEmit("<native fn>");
+            } else if (IS_CLOSURE(value)) {
+                ObjFunction *f = AS_CLOSURE(value)->function;
+                if (f->name) {
+                    hkEmit("<fn ");
+                    hkEmit(f->name->chars);
+                    hkEmit(">");
+                } else {
+                    hkEmit("<script>");
+                }
             } else if (IS_FUNCTION(value)) {
                 ObjFunction *f = AS_FUNCTION(value);
                 if (f->name) {

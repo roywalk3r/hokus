@@ -44,10 +44,14 @@ typedef struct {
 #define AS_FUNCTION(v)  ((ObjFunction *)(v).as.obj)
 #define IS_NATIVE(v)    (IS_OBJ(v) && ((Obj *)(v).as.obj)->type == OBJ_NATIVE)
 #define AS_NATIVE(v)    (((ObjNative *)(v).as.obj)->fn)
+#define IS_CLOSURE(v)   (IS_OBJ(v) && ((Obj *)(v).as.obj)->type == OBJ_CLOSURE)
+#define AS_CLOSURE(v)   ((ObjClosure *)(v).as.obj)
 
-typedef enum { OBJ_STRING, OBJ_FUNCTION, OBJ_NATIVE } ObjType;
+typedef enum { OBJ_STRING, OBJ_FUNCTION, OBJ_NATIVE, OBJ_CLOSURE, OBJ_UPVALUE } ObjType;
 
 typedef Value (*NativeFn)(int argCount, Value *args);
+typedef struct ObjUpvalue ObjUpvalue;
+typedef struct ObjClosure ObjClosure;
 
 struct Obj {
     ObjType type;
@@ -66,11 +70,26 @@ struct ObjString {
     char *chars;
 };
 
+struct ObjUpvalue {
+    Obj obj;
+    Value *location;   /* stack slot while open, &closed once closed */
+    Value closed;
+    ObjUpvalue *next;  /* VM open-upvalue list */
+};
+
 struct ObjFunction {
     Obj obj;
     int arity;
+    int upvalueCount;
     struct Chunk *chunk;
     ObjString *name;
+};
+
+struct ObjClosure {
+    Obj obj;
+    ObjFunction *function;
+    ObjUpvalue **upvalues;
+    int upvalueCount;
 };
 
 typedef struct {
@@ -89,6 +108,8 @@ ObjString *copyString(const char *chars, int length);
 ObjString *takeString(char *chars, int length);
 ObjFunction *newFunction(void);
 ObjNative *newNative(NativeFn fn);
+ObjClosure *newClosure(ObjFunction *function);
+ObjUpvalue *newUpvalue(Value *slot);
 
 /* Host-provided time source for the clock() native (seconds). */
 double hkClockSeconds(void);

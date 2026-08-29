@@ -12,7 +12,7 @@ const [bin, root] = process.argv.slice(2);
 
 // Directories whose semantics HOKUS deliberately does not implement.
 const SKIP_DIRS = new Set([
-  "benchmark", "class", "closure", "constructor", "field", "inheritance",
+  "benchmark", "class", "constructor", "field", "inheritance",
   "method", "super", "this", "regression", "limit",
   "scanning", // asserts the scanner's token dump — jlox-implementation-specific
 ]);
@@ -20,7 +20,6 @@ const SKIP_DIRS = new Set([
 // Feature tokens that place a file outside the subset.
 const UNSUPPORTED = [
   /\bclass\b/, /\bthis\b/, /\bsuper\b/, /\bstatic\b/,
-  /closure/i, /local_recursion/, // closures not in HOKUS subset
 ];
 
 function* walk(dir) {

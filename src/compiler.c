@@ -28,7 +28,13 @@ typedef enum {
 typedef struct {
     Token name;
     int depth;
+    bool isCaptured;
 } Local;
+
+typedef struct {
+    uint8_t index;
+    bool isLocal;
+} Upvalue;
 
 typedef struct Compiler Compiler;
 struct Compiler {
@@ -37,6 +43,7 @@ struct Compiler {
     Chunk *chunk;
     Local locals[256];
     int localCount;
+    Upvalue upvalues[256];
     int scopeDepth;
 };
 
@@ -169,11 +176,17 @@ static void initCompiler(Compiler *compiler, Compiler *enclosing, const char *na
     compiler->function->chunk = compiler->chunk;
     if (name != NULL) compiler->function->name = copyString(name, nameLen);
     current = compiler;
-    /* slot 0: the function itself */
+    /* slot 0: the function itself (name "" for script/anon, own name for fns) */
     Local *local = &current->locals[current->localCount++];
     local->depth = 0;
-    local->name.start = "";
-    local->name.length = 0;
+    local->isCaptured = false;
+    if (name != NULL) {
+        local->name.start = name;
+        local->name.length = nameLen;
+    } else {
+        local->name.start = "";
+        local->name.length = 0;
+    }
 }
 
 static ObjFunction *endCompiler(Parser *p) {
@@ -189,7 +202,11 @@ static void endScope(Parser *p) {
     current->scopeDepth--;
     while (current->localCount > 0 &&
            current->locals[current->localCount - 1].depth > current->scopeDepth) {
-        emitByte(p, OP_POP);
+        if (current->locals[current->localCount - 1].isCaptured) {
+            emitByte(p, OP_CLOSE_UPVALUE);
+        } else {
+            emitByte(p, OP_POP);
+        }
         current->localCount--;
     }
 }
@@ -218,6 +235,35 @@ static int resolveLocal(Compiler *compiler, Token *name) {
         if (identifiersEqual(name, &local->name)) {
             return i;
         }
+    }
+    return -1;
+}
+
+static int addUpvalue(Parser *p, Compiler *compiler, uint8_t index, bool isLocal) {
+    int upvalueCount = compiler->function->upvalueCount;
+    for (int i = 0; i < upvalueCount; i++) {
+        Upvalue *upvalue = &compiler->upvalues[i];
+        if (upvalue->index == index && upvalue->isLocal == isLocal) return i;
+    }
+    if (upvalueCount == 256) {
+        error(p, "Too many closure variables in function.");
+        return 0;
+    }
+    compiler->upvalues[upvalueCount].isLocal = isLocal;
+    compiler->upvalues[upvalueCount].index = index;
+    return compiler->function->upvalueCount++;
+}
+
+static int resolveUpvalue(Parser *p, Compiler *compiler, Token *name) {
+    if (compiler->enclosing == NULL) return -1;
+    int local = resolveLocal(compiler->enclosing, name);
+    if (local != -1) {
+        compiler->enclosing->locals[local].isCaptured = true;
+        return addUpvalue(p, compiler, (uint8_t)local, true);
+    }
+    int upvalue = resolveUpvalue(p, compiler->enclosing, name);
+    if (upvalue != -1) {
+        return addUpvalue(p, compiler, (uint8_t)upvalue, false);
     }
     return -1;
 }
@@ -368,6 +414,9 @@ static void namedVariable(Parser *p, Token name, bool canAssign) {
     if (arg != -1) {
         getOp = OP_GET_LOCAL;
         setOp = OP_SET_LOCAL;
+    } else if ((arg = resolveUpvalue(p, current, &name)) != -1) {
+        getOp = OP_GET_UPVALUE;
+        setOp = OP_SET_UPVALUE;
     } else {
         arg = identifierConstant(p, &name);
         getOp = OP_GET_GLOBAL;
@@ -516,7 +565,11 @@ static void function(Parser *p) {
     consume(p, TOKEN_LEFT_BRACE, "Expect '{' before function body.");
     block(p);
     ObjFunction *fn = endCompiler(p);
-    emitBytes(p, OP_CONSTANT, makeConstant(p, OBJ_VAL(fn)));
+    emitBytes(p, OP_CLOSURE, makeConstant(p, OBJ_VAL(fn)));
+    for (int i = 0; i < fn->upvalueCount; i++) {
+        emitByte(p, compiler.upvalues[i].isLocal ? 1 : 0);
+        emitByte(p, compiler.upvalues[i].index);
+    }
 }
 
 static void funDeclaration(Parser *p) {
