@@ -40,6 +40,7 @@ typedef enum {
     OP_METHOD,
     OP_INHERIT,
     OP_GET_SUPER,
+    OP_INVOKE,
 } OpCode;
 
 typedef struct Chunk {

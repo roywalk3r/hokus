@@ -178,6 +178,33 @@ static bool bindMethod(VM *vm, ObjClass *klass, ObjString *name) {
     return true;
 }
 
+static bool invoke(VM *vm, ObjString *name, int argCount, CallFrame **frameOut) {
+    Value receiver = peek(vm, argCount);
+    if (!IS_INSTANCE(receiver)) {
+        runtimeError(vm, "Only instances have methods.");
+        return false;
+    }
+    ObjInstance *instance = AS_INSTANCE(receiver);
+    Value *field;
+    if (tableGet(instance->fields, name, &field)) {
+        /* a field shadows methods: call whatever it holds (fails cleanly if not callable) */
+        vm->stackTop[-argCount - 1] = *field;
+        return callValue(vm, argCount, frameOut);
+    }
+    Value *method;
+    if (!tableGet(instance->klass->methods, name, &method)) {
+        char buf[96];
+        int n = 0;
+        const char *pre = "Undefined property '";
+        while (*pre) buf[n++] = *pre++;
+        for (int i = 0; i < name->length && n < 80; i++) buf[n++] = name->chars[i];
+        buf[n++] = '\''; buf[n++] = '.'; buf[n] = '\0';
+        runtimeError(vm, buf);
+        return false;
+    }
+    return callClosure(vm, AS_CLOSURE(*method), argCount, frameOut);
+}
+
 static bool isFalsey(Value value) {
     return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
 }
@@ -371,6 +398,14 @@ static InterpretResult run(VM *vm, int budget) {
             case OP_CALL: {
                 int argCount = READ_BYTE();
                 if (!callValue(vm, argCount, &frame)) {
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                break;
+            }
+            case OP_INVOKE: {
+                ObjString *name = READ_STRING();
+                int argCount = READ_BYTE();
+                if (!invoke(vm, name, argCount, &frame)) {
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 break;

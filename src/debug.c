@@ -83,6 +83,20 @@ static int constantInstruction(const char *name, Chunk *chunk, int offset) {
     return offset + 3;
 }
 
+static int invokeInstruction(const char *name, Chunk *chunk, int offset) {
+    uint16_t constant = (uint16_t)((chunk->code[offset + 1] << 8) | chunk->code[offset + 2]);
+    uint8_t argCount = chunk->code[offset + 3];
+    emitPadded(name, 16);
+    emitPadded("", 4);
+    emitInt(constant);
+    emit(" (");
+    emitInt(argCount);
+    emit(" args) ");
+    emitValueBrief(chunk->constants.values[constant]);
+    emit("\n");
+    return offset + 4;
+}
+
 static int byteInstruction(const char *name, Chunk *chunk, int offset) {
     emitPadded(name, 16);
     emitPadded("", 4);
@@ -190,6 +204,7 @@ int disassembleInstruction(Chunk *chunk, int offset) {
         case OP_METHOD:        return constantInstruction("OP_METHOD", chunk, offset);
         case OP_INHERIT:       return simpleInstruction("OP_INHERIT", offset);
         case OP_GET_SUPER:     return constantInstruction("OP_GET_SUPER", chunk, offset);
+        case OP_INVOKE:        return invokeInstruction("OP_INVOKE", chunk, offset);
         default:
             emit("<unknown opcode>");
             emit("\n");

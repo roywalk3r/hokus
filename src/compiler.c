@@ -487,6 +487,18 @@ static void dot(Parser *p, Compiler *c, bool canAssign) {
     if (canAssign && matchToken(p, TOKEN_EQUAL)) {
         expression(p);
         emitConstRef(p, OP_SET_PROPERTY, name);
+    } else if (matchToken(p, TOKEN_LEFT_PAREN)) {
+        uint8_t argCount = 0;
+        if (!check(p, TOKEN_RIGHT_PAREN)) {
+            do {
+                expression(p);
+                if (argCount == 255) error(p, "Can't have more than 255 arguments.");
+                argCount++;
+            } while (matchToken(p, TOKEN_COMMA));
+        }
+        consume(p, TOKEN_RIGHT_PAREN, "Expect ')' after arguments.");
+        emitConstRef(p, OP_INVOKE, name);
+        emitByte(p, argCount);
     } else {
         emitConstRef(p, OP_GET_PROPERTY, name);
     }
