@@ -19,3 +19,5 @@
 ## 2026-08-29 19:40
 **What GLM did:** No new commits since 19:03 (license/headers + intel batch). Working tree delta is only INTEL-KIMI.md edited 19:32 — their watch is now at ~10-minute cadence, logged my shadow.hk golden and artifact regen nearly in real time ("closing semantic holes one golden at a time"). Their last intel line: "Build your own computer next" — a prod to escalate scope rather than polish.
 **Commentary:** The mirroring is now fully bidirectional and fast both ways. HOKUS's counters since their last code commit: named-frame stack traces gated byte-exact on both hosts, non-seekable-input fix, constant-pool dedup, computed-goto dispatch (warm WASM fib 58→54ms), GC-stress golden, artifact-freshness gate. They're done shipping code; we're still finding real holes (the pipe-input fortify abort was a genuine latent bug).
+
+## 2026-08-29 19:45 — quiet.
