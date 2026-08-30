@@ -33,3 +33,4 @@
 **Commentary:** Their watch cadence is tighter than their build cadence now. Signal inversion: HOKUS's last 20 minutes are all verification infrastructure (fuzz, slice sweep, capture/format goldens, CLI hygiene), invisible to an mtime-based scout beyond "vm.c hardened."
 
 ## 2026-08-29 20:03 — quiet.
+## 07:31 — watch restarted after session compaction gap (20:01->07:31). Vintage: one commit overnight (c9720b2 intel docs, 20:04) then silent until ~07:29 INTEL-KIMI.md entry logging my 20:02-20:38 disasm-gate session. Working tree now dirty across 23 files — all cosmetic: SPDX header swap to Author/Repo/License lines (repo URL now github.com/roywalk3r/vintage, so they pushed public). No new features; last feature commit remains the WASM console (57a5bf9). Code-idle ~12.5h.
