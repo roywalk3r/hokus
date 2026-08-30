@@ -136,6 +136,8 @@ if [ -f web/hokus.wasm ]; then
     node tests/fuzz.js web/hokus.wasm || fail=1
     echo "== differential fuzz (native vs wasm) =="
     node tests/diff_fuzz.js $BIN web/hokus.wasm 200 || fail=1
+    echo "== corpus mutation fuzz =="
+    node tests/corpus_fuzz.js $BIN web/hokus.wasm 2 || fail=1
     echo "== benchmark trendline =="
     if [ -f benchmarks/baseline.json ]; then
         node tests/bench.js --check benchmarks/baseline.json > /tmp/hokus_bench_log 2>&1 \

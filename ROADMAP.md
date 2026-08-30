@@ -42,10 +42,16 @@ and appears in the README or the playground.
   records `benchmarks/latest.json`, and `--check` fails beyond 1.5× the
   committed `benchmarks/baseline.json`.
 
+- **Corpus mutation fuzz** — token-level mutants of the third-party corpus
+  (delete/swap/duplicate/number-tweak), native vs wasm byte-parity (2 mutants
+  × 265 files in the gate). Mutants run step-sliced on wasm with an
+  instruction cap so infinite loops can't hang the gate.
+
 ## Next (in order)
 
-1. **Corpus-fuzz hybrid seeds** — mutate corpus programs (not just the
-   generator grammar) as fuzz inputs.
+1. **Static methods** — the one remaining language divergence: corpus skips
+   drop from 4 toward 0. `class A { static m() {} }` compiles to methods on
+   the class object itself.
 
 ## Non-goals
 
