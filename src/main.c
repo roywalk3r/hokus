@@ -67,16 +67,57 @@ static void runFile(VM *vm, const char *path, bool disasm, bool scan, int slice)
     free(source);
 }
 
+/* Net open-bracket count for one physical line, string- and comment-aware —
+   lets the REPL accumulate multi-line blocks without a full lex. */
+static int bracketDelta(const char *s) {
+    int delta = 0;
+    bool inStr = false, esc = false;
+    for (const char *c = s; *c; c++) {
+        if (inStr) {
+            if (esc) esc = false;
+            else if (*c == '\\') esc = true;
+            else if (*c == '"') inStr = false;
+            continue;
+        }
+        if (*c == '/' && c[1] == '/') break;
+        if (*c == '"') inStr = true;
+        else if (*c == '{' || *c == '(') delta++;
+        else if (*c == '}' || *c == ')') delta--;
+    }
+    return delta;
+}
+
+#define REPL_MAX 16384
+
 static void repl(VM *vm) {
+    char acc[REPL_MAX];
+    size_t accLen = 0;
+    int depth = 0;
     char line[2048];
     for (;;) {
-        printf("> ");
+        printf(depth > 0 ? ". " : "> ");
+        fflush(stdout);
         if (!fgets(line, sizeof(line), stdin)) {
             printf("\n");
             break;
         }
-        interpret(vm, line, (int)strlen(line));
-        vm->hadRuntimeError = false; /* keep the session alive past one bad line */
+        depth += bracketDelta(line);
+        size_t lineLen = strlen(line);
+        if (accLen + lineLen >= REPL_MAX) {
+            fprintf(stderr, "repl: input too long\n");
+            accLen = 0;
+            depth = 0;
+            continue;
+        }
+        memcpy(acc + accLen, line, lineLen + 1);
+        accLen += lineLen;
+        if (depth > 0) continue;
+        if (accLen > 0) {
+            interpret(vm, acc, (int)accLen);
+            vm->hadRuntimeError = false; /* keep the session alive past one bad line */
+        }
+        accLen = 0;
+        depth = 0;
     }
 }
 

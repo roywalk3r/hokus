@@ -62,7 +62,7 @@ same C object code, same clang. Reproduce: `node tests/bench.js`.
 make                  # native: bin/hokus
 make wasm             # web/hokus.wasm — clang --target=wasm32, no stdlib, no emscripten
 bin/hokus examples/fib.hk
-bin/hokus             # REPL
+bin/hokus             # REPL (multi-line aware: paste whole fun/class blocks)
 bin/hokus -d examples/strings.hk   # disassembler
 bin/hokus -t examples/fib.hk       # execution trace
 bin/hokus -s examples/fib.hk       # token dump (jlox format)
