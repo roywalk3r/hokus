@@ -13,6 +13,11 @@ const PROGRAMS = {
     "class Counter {\n    init() { this.n = 0; }\n    bump() { this.n = this.n + 1; return this.n; }\n}\n"
     + "var c = Counter();\nvar last = 0;\n"
     + "for (var i = 0; i < 200000; i = i + 1) last = c.bump();\nprint last;\n",
+  "100k field gets (interned keys)":
+    "class P { init() { this.x = 1; } }\nvar p = P();\nvar s = 0;\n"
+    + "for (var i = 0; i < 100000; i = i + 1) s = s + p.x;\nprint s;\n",
+  "2k string concat (+ GC)":
+    "var s = \"\";\nfor (var i = 0; i < 2000; i = i + 1) s = s + \"ab\";\nprint s;\n",
 };
 
 for (const [label, src] of Object.entries(PROGRAMS)) {
