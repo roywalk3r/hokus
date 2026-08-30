@@ -121,6 +121,7 @@ struct ObjClass {
     Obj obj;
     ObjString *name;
     struct Table *methods; /* ObjString name -> ObjClosure */
+    struct Table *statics; /* methods on the class object itself: A.m() */
 };
 
 struct ObjInstance {

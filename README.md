@@ -43,8 +43,10 @@ for (var i = 1; i <= 20; i = i + 1) {
 Numbers (doubles), booleans, nil, strings with escapes and `+` concat; globals &
 block-scoped locals; `if/else`, `while`, `for`, `and`, `or`, `!`; first-class
 functions with recursion and **closures**; **classes** with methods, initializers,
-`this`, inheritance, and `super`; `print`; a `clock()` native. Deviations from
-stock Lox: no `static` methods (skipped in the corpus harness, loudly).
+`this`, inheritance, and `super`; **static methods** (`static m() {}` — stored
+on the class object, inherited, no `this`); `print`; a `clock()` native.
+Deviations from stock Lox: none (the corpus's `static` tests are upstream of
+this book chapter, so statics are golden-tested locally).
 
 ## Performance
 

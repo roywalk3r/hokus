@@ -148,6 +148,8 @@ ObjClass *newClass(ObjString *name) {
     klass->name = name;
     klass->methods = HK_REALLOC(NULL, 0, sizeof(Table));
     initTable(klass->methods);
+    klass->statics = HK_REALLOC(NULL, 0, sizeof(Table));
+    initTable(klass->statics);
     return klass;
 }
 

@@ -755,15 +755,18 @@ static void funDeclaration(Parser *p) {
 }
 
 static void method(Parser *p) {
+    /* static methods live on the class object: plain function, no `this` */
+    bool isStatic = matchToken(p, TOKEN_STATIC);
     consume(p, TOKEN_IDENTIFIER, "Expect method name.");
     int constant = identifierConstant(p, &p->previous);
-    FunctionType type = TYPE_METHOD;
+    FunctionType type = isStatic ? TYPE_FUNCTION : TYPE_METHOD;
     Token name = p->previous;
-    if (name.length == 4 && hk_strncmp(p->previous.start, "init", 4) == 0) {
+    if (!isStatic && name.length == 4 &&
+        hk_strncmp(p->previous.start, "init", 4) == 0) {
         type = TYPE_INITIALIZER;
     }
     function(p, type);
-    emitConstRef(p, OP_METHOD, constant);
+    emitConstRef(p, isStatic ? OP_STATIC_METHOD : OP_METHOD, constant);
 }
 
 static void classDeclaration(Parser *p) {

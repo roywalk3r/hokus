@@ -43,6 +43,8 @@ typedef enum {
     OP_GET_SUPER,
     OP_INVOKE,
     OP_SUPER_INVOKE,
+    /* appended last: bytecode goldens and .hki images index these by value */
+    OP_STATIC_METHOD,
 } OpCode;
 
 typedef struct Chunk {

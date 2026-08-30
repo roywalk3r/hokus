@@ -78,6 +78,7 @@ static void blacken(Obj *obj) {
             ObjClass *klass = (ObjClass *)obj;
             markObject((Obj *)klass->name);
             markTable(klass->methods);
+            markTable(klass->statics);
             break;
         }
         case OBJ_INSTANCE: {
@@ -160,6 +161,8 @@ static void freeObject(Obj *obj) {
             ObjClass *klass = (ObjClass *)obj;
             freeTable(klass->methods);
             HK_FREE(klass->methods, sizeof(Table));
+            freeTable(klass->statics);
+            HK_FREE(klass->statics, sizeof(Table));
             HK_FREE(klass, sizeof(ObjClass));
             break;
         }

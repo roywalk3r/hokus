@@ -169,6 +169,22 @@ static bool bindMethod(VM *vm, ObjClass *klass, ObjString *name) {
 
 static bool invoke(VM *vm, ObjString *name, int argCount, CallFrame **frameOut) {
     Value receiver = peek(vm, argCount);
+    /* A.m(...) — statics are plain functions: slot 0 holds the closure, no this */
+    if (IS_CLASS(receiver)) {
+        Value *method;
+        if (!tableGet(AS_CLASS(receiver)->statics, name, &method)) {
+            char buf[96];
+            int n = 0;
+            const char *pre = "Undefined property '";
+            while (*pre) buf[n++] = *pre++;
+            for (int i = 0; i < name->length && n < 80; i++) buf[n++] = name->chars[i];
+            buf[n++] = '\''; buf[n++] = '.'; buf[n] = '\0';
+            runtimeError(vm, buf);
+            return false;
+        }
+        vm->stackTop[-argCount - 1] = *method;
+        return callClosure(vm, AS_CLOSURE(*method), argCount, frameOut);
+    }
     if (!IS_INSTANCE(receiver)) {
         runtimeError(vm, "Only instances have methods.");
         return false;
@@ -283,7 +299,7 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_JUMP, &&op_OP_JUMP_IF_FALSE, &&op_OP_LOOP, &&op_OP_CALL,
         &&op_OP_RETURN, &&op_OP_GET_PROPERTY, &&op_OP_SET_PROPERTY,
         &&op_OP_CLASS, &&op_OP_METHOD, &&op_OP_INHERIT, &&op_OP_GET_SUPER,
-        &&op_OP_INVOKE, &&op_OP_SUPER_INVOKE,
+        &&op_OP_INVOKE, &&op_OP_SUPER_INVOKE, &&op_OP_STATIC_METHOD,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
@@ -447,18 +463,40 @@ static InterpretResult run(VM *vm, int budget) {
                 pop(vm); /* closure */
                 continue;
             }
+            op_OP_STATIC_METHOD: {
+                ObjString *name = READ_STRING();
+                ObjClass *klass = AS_CLASS(peek(vm, 1));
+                tableSet(klass->statics, name, peek(vm, 0));
+                pop(vm); /* closure */
+                continue;
+            }
             op_OP_INHERIT: {
                 if (!IS_CLASS(peek(vm, 1))) {
                     runtimeError(vm, "Superclass must be a class.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 ObjClass *subclass = AS_CLASS(peek(vm, 0));
-                tableAddAll(AS_CLASS(peek(vm, 1))->methods, subclass->methods);
+                ObjClass *superclass = AS_CLASS(peek(vm, 1));
+                tableAddAll(superclass->methods, subclass->methods);
+                tableAddAll(superclass->statics, subclass->statics);
                 pop(vm); /* subclass */
                 continue;
             }
             op_OP_GET_PROPERTY: {
                 ObjString *name = READ_STRING();
+                /* class objects expose their statics as properties */
+                if (IS_CLASS(peek(vm, 0))) {
+                    ObjClass *klass = AS_CLASS(peek(vm, 0));
+                    Value *method;
+                    if (!tableGet(klass->statics, name, &method)) {
+                        /* stock-Lox error: corpus asserts this exact message */
+                        runtimeError(vm, "Only instances have properties.");
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
+                    pop(vm);
+                    push(vm, *method);
+                    continue;
+                }
                 if (!IS_INSTANCE(peek(vm, 0))) {
                     runtimeError(vm, "Only instances have properties.");
                     return INTERPRET_RUNTIME_ERROR;

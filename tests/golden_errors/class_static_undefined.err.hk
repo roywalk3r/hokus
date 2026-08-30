@@ -1,0 +1,3 @@
+class C { static sm() { return 1; } }
+var c = C();
+print c.sm(); // statics don't leak onto instances

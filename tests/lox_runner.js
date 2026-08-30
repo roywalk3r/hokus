@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-// Runs the official Crafting Interpreters Lox test corpus against HOKUS,
-// restricted to the HOKUS language subset (no static methods/etc.).
+// Runs the official Crafting Interpreters Lox test corpus against HOKUS.
 // Parse `// expect: <line>` annotations and diff program stdout against them.
 // Error-annotation tests are verified against compiler/VM diagnostics:
 //   // [line N] Error at 'x': MSG   → exit 65, output shows [line N] + MSG

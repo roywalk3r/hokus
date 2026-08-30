@@ -1,0 +1,24 @@
+class Counter {
+  static incr(n) { return n + 1; }
+  bup() { return 10; }
+}
+print Counter.incr(41);      // expect: 42
+
+class SubCounter < Counter {}
+print SubCounter.incr(9);    // expect: 10
+
+class Box {
+  static wrap(v) {
+    var b = Box();
+    b.v = v;
+    return b;
+  }
+}
+var box = Box.wrap("loot");
+print box.v;                 // expect: loot
+
+var f = Counter.incr;
+print f(1);                  // expect: 2
+
+var c = Counter();
+print c.bup();               // expect: 10

@@ -10,7 +10,9 @@ and appears in the README or the playground.
 - **Compiler** — Pratt parser, full Lox (closures, classes, inheritance,
   `super`), 16-bit constant pool, compile-time folding of numeric literals.
 - **VM** — NaN-boxed values (one 64-bit word per slot), computed-goto
-  dispatch, `OP_INVOKE`/`OP_SUPER_INVOKE` fast paths, string interning,
+  dispatch, `OP_INVOKE`/`OP_SUPER_INVOKE` fast paths, static methods
+  (`class A { static m() {} }` on a dedicated class-side table, inherited,
+  no `this` slot), string interning,
   mark-sweep GC with weak-key intern table, free-list allocator on the
   wasm bump heap.
 - **CLI** — REPL (brace-depth-aware multi-line input for pasted
@@ -49,9 +51,8 @@ and appears in the README or the playground.
 
 ## Next (in order)
 
-1. **Static methods** — the one remaining language divergence: corpus skips
-   drop from 4 toward 0. `class A { static m() {} }` compiles to methods on
-   the class object itself.
+1. **Modules** — `import "lib.hk";` with a compiled-unit cache so programs
+   span files. Native host only; the playground keeps its single-file model.
 
 ## Non-goals
 
