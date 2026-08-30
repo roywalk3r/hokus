@@ -217,7 +217,12 @@ void gcFreeAll(void) {
 void gcOnAllocate(void) {
     if (hkGcThreshold == 0) hkGcThreshold = GC_INITIAL_THRESHOLD;
     hkGcCounter++;
-    if (hkGcCounter > hkGcThreshold && hkActiveVM != NULL) {
-        gcCollect(hkActiveVM);
-    }
+    if (hkActiveVM == NULL) return;
+#ifdef HK_GC_STRESS
+    /* collect-before-every-allocate build: turns latent rooting bugs into
+       deterministic failures instead of once-per-threshold coincidences */
+    gcCollect(hkActiveVM);
+#else
+    if (hkGcCounter > hkGcThreshold) gcCollect(hkActiveVM);
+#endif
 }

@@ -11,6 +11,13 @@ $(BIN): $(SRC_CORE) src/debug.c src/main.c $(HDRS)
 	@mkdir -p bin
 	$(CC) $(CFLAGS) -o $@ $(filter %.c,$^)
 
+# collect-on-every-allocation build — stress gate for GC rooting bugs
+bin/hokus-gcstress: $(SRC_CORE) src/debug.c src/main.c $(HDRS)
+	@mkdir -p bin
+	$(CC) $(CFLAGS) -DHK_GC_STRESS -o $@ $(filter %.c,$^)
+
+gcstress: bin/hokus-gcstress
+
 # --- freestanding WASM build (no emscripten, no libc) ---
 WASM_CC    = clang
 WASM_FLAGS = --target=wasm32 -O2 -nostdlib -fno-builtin -DHK_WASM \
@@ -28,7 +35,7 @@ hokus-artifact.html: web/hokus.wasm web/index.html tools/build_artifact.sh
 
 artifact: hokus-artifact.html
 
-test: $(BIN) web/hokus.wasm hokus-artifact.html
+test: $(BIN) bin/hokus-gcstress web/hokus.wasm hokus-artifact.html
 	./tests/run.sh
 
 clean:

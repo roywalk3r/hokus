@@ -49,6 +49,25 @@ for f in examples/*.hk; do
     fi
 done
 
+echo "== GC stress (collect on every allocation) =="
+if [ -x ./bin/hokus-gcstress ]; then
+    for f in tests/golden/*.hk; do
+        name=$(basename "$f" .hk)
+        if ./bin/hokus-gcstress "$f" > /tmp/hokus_out 2>&1 && diff -q "tests/golden/$name.expected" /tmp/hokus_out >/dev/null; then
+            echo "PASS gcstress:$name"
+        else
+            echo "FAIL gcstress:$name"; fail=1
+        fi
+    done
+    for f in tests/golden_errors/*.err.hk; do
+        name=$(basename "$f" .err.hk)
+        ./bin/hokus-gcstress "$f" > /tmp/hokus_out 2>&1
+        if [ $? -eq 70 ]; then echo "PASS gcstress:$name"; else echo "FAIL gcstress:$name"; fail=1; fi
+    done
+else
+    echo "SKIP gcstress (run: make gcstress)"
+fi
+
 echo "== disassembler goldens =="
 for f in tests/golden_disasm/*.hk; do
     name=$(basename "$f" .hk)
