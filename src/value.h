@@ -155,6 +155,9 @@ int hk_strncmp(const char *a, const char *b, int n);
 typedef void (*HkEmitFn)(const char *);
 extern HkEmitFn hkEmit; /* set by the host (native CLI or WASM shim) */
 
+struct Table;
+extern struct Table hkStrings; /* global string intern table, weak keys */
+
 void printValue(Value value);         /* writes through the VM output sink */
 void numberToString(double value, char *buf, int bufSize);
 double parseDouble(const char *s, int length);

@@ -108,6 +108,7 @@ int hk_disasm(int sourceLength) {
     outLen = 0;
     srcBuf[sourceLength < SRC_SIZE ? sourceLength : SRC_SIZE - 1] = '\0';
     hkEmit = bufferEmit;
+    objectsInit(); /* heap was rewound: intern table/object list must not dangle */
     ObjFunction *fn = compile(srcBuf, sourceLength);
     outBuf[outLen] = '\0';
     if (fn == NULL) return 65;

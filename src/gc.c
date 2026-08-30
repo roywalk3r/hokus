@@ -1,6 +1,7 @@
 /* HOKUS — freestanding Lox-class bytecode VM. MIT License; see LICENSE. */
 #include "chunk.h"
 #include "gc.h"
+#include "table.h"
 
 /* value.c owns the object list; these are its GC interfaces. */
 extern Obj *hkObjects;              /* head of every allocated object */
@@ -174,6 +175,8 @@ static void freeObject(Obj *obj) {
 }
 
 static void sweep(void) {
+    /* Weak keys must die before their objects, or the table dangles. */
+    tableRemoveWhite(&hkStrings);
     Obj *previous = NULL;
     Obj *object = hkObjects;
     while (object != NULL) {
@@ -207,6 +210,8 @@ void gcFreeAll(void) {
         object = next;
     }
     hkObjects = NULL;
+    freeTable(&hkStrings);
+    initTable(&hkStrings);
 }
 
 void gcOnAllocate(void) {

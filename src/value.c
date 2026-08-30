@@ -61,6 +61,7 @@ void objectsInit(void) {
     hkGcCounter = 0;
     hkGcThreshold = 0;
     hkActiveVM = NULL;
+    initTable(&hkStrings);
 }
 
 static uint32_t hashString(const char *key, int length) {
@@ -72,11 +73,21 @@ static uint32_t hashString(const char *key, int length) {
     return hash;
 }
 
+/* Global intern table — weak keys: gc.c's sweep drops unmarked entries.
+   Interning is process-global (not per-VM), matching hkObjects ownership. */
+Table hkStrings;
+
 static ObjString *allocateString(char *chars, int length, uint32_t hash) {
+    ObjString *interned = tableFindString(&hkStrings, chars, length, hash);
+    if (interned != NULL) {
+        if (chars != interned->chars) HK_FREE(chars, length + 1);
+        return interned;
+    }
     ObjString *string = (ObjString *)allocateObj(sizeof(ObjString), OBJ_STRING);
     string->length = length;
     string->hash = hash;
     string->chars = chars;
+    tableSet(&hkStrings, string, NIL_VAL);
     return string;
 }
 
@@ -85,10 +96,13 @@ ObjString *takeString(char *chars, int length) {
 }
 
 ObjString *copyString(const char *chars, int length) {
+    uint32_t hash = hashString(chars, length);
+    ObjString *interned = tableFindString(&hkStrings, chars, length, hash);
+    if (interned != NULL) return interned;
     char *heap = HK_REALLOC(NULL, 0, length + 1);
     hk_memcpy(heap, chars, length);
     heap[length] = '\0';
-    return allocateString(heap, length, hashString(heap, length));
+    return allocateString(heap, length, hash);
 }
 
 ObjFunction *newFunction(void) {

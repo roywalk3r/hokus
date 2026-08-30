@@ -90,3 +90,27 @@ void tableAddAll(Table *from, Table *to) {
         if (entry->key != NULL) tableSet(to, entry->key, entry->value);
     }
 }
+
+ObjString *tableFindString(Table *table, const char *chars, int length, uint32_t hash) {
+    if (table->count == 0) return NULL;
+    uint32_t index = hash % (uint32_t)table->capacity;
+    for (;;) {
+        Entry *entry = &table->entries[index];
+        if (entry->key == NULL) {
+            if (IS_NIL(entry->value)) return NULL; /* empty, not tombstone */
+        } else if (entry->key->length == length && entry->key->hash == hash &&
+                   hk_strncmp(entry->key->chars, chars, length) == 0) {
+            return entry->key;
+        }
+        index = (index + 1) % (uint32_t)table->capacity;
+    }
+}
+
+void tableRemoveWhite(Table *table) {
+    for (int i = 0; i < table->capacity; i++) {
+        Entry *entry = &table->entries[i];
+        if (entry->key != NULL && !entry->key->obj.isMarked) {
+            tableDelete(table, entry->key);
+        }
+    }
+}
