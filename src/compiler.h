@@ -6,4 +6,10 @@
 
 ObjFunction *compile(const char *source, int sourceLen);
 
+/* `import "path";` resolves through the host: NULL (or a NULL hook) means the
+   module can't be provided — the compiler reports it as a compile error.
+   The host retains ownership of the returned source for the process life. */
+typedef const char *(*HkReadModuleFn)(const char *path);
+extern HkReadModuleFn hkReadModule;
+
 #endif

@@ -85,7 +85,11 @@ static TokenType identifierType(Lexer *l) {
                 }
             }
             break;
-        case 'i': return checkKeyword(l, 1, 1, "f", TOKEN_IF);
+        case 'i':
+            if (l->current - l->start > 1 && l->start[1] == 'm') {
+                return checkKeyword(l, 2, 4, "port", TOKEN_IMPORT);
+            }
+            return checkKeyword(l, 1, 1, "f", TOKEN_IF);
         case 'n': return checkKeyword(l, 1, 2, "il", TOKEN_NIL);
         case 'o': return checkKeyword(l, 1, 1, "r", TOKEN_OR);
         case 'c': return checkKeyword(l, 1, 4, "lass", TOKEN_CLASS);
@@ -181,7 +185,7 @@ static const char *TOKEN_NAMES[] = {
     "AND", "CLASS", "ELSE", "FALSE", "FOR", "FUN",
     "IF", "NIL", "OR", "PRINT", "RETURN",
     "SUPER", "THIS", "TRUE", "VAR", "WHILE",
-    "STATIC",
+    "STATIC", "IMPORT",
     "ERROR", "EOF"
 };
 

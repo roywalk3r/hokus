@@ -33,6 +33,9 @@ function check(name, ok, detail = "") {
 // 1. golden programs produce identical output under WASM as under native
 for (const f of readdirSync(goldenDir).filter((f) => f.endsWith(".hk"))) {
   const src = readFileSync(join(goldenDir, f), "utf8");
+  // the freestanding host has no filesystem: `import` is a native-only
+  // feature — assert its error surface below instead (check 2b)
+  if (/\bimport\b/.test(src)) continue;
   const expected = readFileSync(join(goldenDir, f.replace(/\.hk$/, ".expected")), "utf8");
   const code = vm.hk_run(load(src));
   check(`run ${f}`, code === 0 && read().trimEnd() === expected.trimEnd(),
@@ -47,6 +50,14 @@ for (const f of readdirSync(goldenDir).filter((f) => f.endsWith(".hk"))) {
   vm.hk_run(load("print 1;"));
   check("stats", a1 > 200 && h1 > 4096 && vm.hk_stat_allocs() < a1,
     `allocs=${a1} heap=${h1} after2=${vm.hk_stat_allocs()}`);
+}
+
+// 2b. import on a filesystem-less host is a clean compile error
+{
+  // hk_run speaks InterpretResult (1 = compile error), unlike hk_prepare (65)
+  const code = vm.hk_run(load('import "ghost.hk";'));
+  check("import-no-fs", code === 1 && read().includes('Cannot import module "ghost.hk"'),
+    `exit ${code}, got ${JSON.stringify(read().slice(0, 120))}`);
 }
 
 // 2. trace mode interleaves instruction lines with program output

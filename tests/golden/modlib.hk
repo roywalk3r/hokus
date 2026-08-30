@@ -1,0 +1,7 @@
+// sidecar module for module.hk — the golden harness runs it standalone too,
+// where it must be a silent no-op.
+var MOD_VERSION = "modlib v1";
+fun mod_twice(f, x) { return f(f(x)); }
+class ModGreeter {
+  static greet(name) { return "hello, " + name; }
+}

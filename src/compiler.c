@@ -65,6 +65,13 @@ typedef struct ClassCompiler {
 
 static ClassCompiler *currentClass = NULL;
 
+HkReadModuleFn hkReadModule; /* host-provided (compiler.h); NULL = no fs */
+
+/* requested-path stack for cycle detection; entries leak intentionally —
+   path bytes are parse-lifetime data */
+static const char *importStack[16];
+static int importDepth = 0;
+
 typedef void (*ParseFn)(Parser *, Compiler *, bool);
 
 typedef struct {
@@ -813,6 +820,66 @@ static void classDeclaration(Parser *p) {
     currentClass = classCompiler.enclosing;
 }
 
+static void importStatement(Parser *p) {
+    if (current->scopeDepth > 0) {
+        error(p, "import only allowed at top level.");
+    }
+    consume(p, TOKEN_STRING, "Expect module path string after 'import'.");
+    Token pathTok = p->previous;
+    if (pathTok.length - 2 > 250) {
+        error(p, "Import path too long.");
+        consume(p, TOKEN_SEMICOLON, "Expect ';' after import.");
+        return;
+    }
+    char path[256];
+    int plen = pathTok.length - 2; /* strip quotes */
+    for (int i = 0; i < plen; i++) path[i] = pathTok.start[1 + i];
+    path[plen] = '\0';
+    for (int i = 0; i < importDepth; i++) {
+        int j = 0;
+        while (importStack[i][j] == path[j] && path[j] != '\0') j++;
+        if (importStack[i][j] == path[j]) {
+            error(p, "Circular import.");
+            consume(p, TOKEN_SEMICOLON, "Expect ';' after import.");
+            return;
+        }
+    }
+    if (importDepth == 16) {
+        error(p, "Import depth exceeds 16.");
+        consume(p, TOKEN_SEMICOLON, "Expect ';' after import.");
+        return;
+    }
+    const char *source = hkReadModule == NULL ? NULL : hkReadModule(path);
+    if (source == NULL) {
+        /* freestanding: hand-built message, no snprintf */
+        char msg[300];
+        int n = 0;
+        const char *pre = "Cannot import module \"";
+        while (*pre) msg[n++] = *pre++;
+        for (int i = 0; i < plen && n < 290; i++) msg[n++] = path[i];
+        msg[n++] = '"'; msg[n] = '\0';
+        error(p, msg);
+        consume(p, TOKEN_SEMICOLON, "Expect ';' after import.");
+        return;
+    }
+    /* module parses inline: its declarations emit into the importing unit */
+    char *persist = HK_REALLOC(NULL, 0, plen + 1);
+    for (int i = 0; i <= plen; i++) persist[i] = path[i];
+    importStack[importDepth++] = persist;
+    Lexer savedLexer = p->lexer;
+    Token savedCurrent = p->current, savedPrevious = p->previous;
+    initLexer(&p->lexer, source);
+    advanceParser(p);
+    while (!matchToken(p, TOKEN_EOF)) {
+        declaration(p);
+    }
+    importDepth--;
+    p->lexer = savedLexer;
+    p->current = savedCurrent;
+    p->previous = savedPrevious;
+    consume(p, TOKEN_SEMICOLON, "Expect ';' after import.");
+}
+
 static void varDeclaration(Parser *p) {
     int global = parseVariable(p, "Expect variable name.");
     if (matchToken(p, TOKEN_EQUAL)) {
@@ -960,6 +1027,8 @@ static void synchronize(Parser *p) {
 static void declaration(Parser *p) {
     if (matchToken(p, TOKEN_CLASS)) {
         classDeclaration(p);
+    } else if (matchToken(p, TOKEN_IMPORT)) {
+        importStatement(p);
     } else if (matchToken(p, TOKEN_FUN)) {
         funDeclaration(p);
     } else if (matchToken(p, TOKEN_VAR)) {

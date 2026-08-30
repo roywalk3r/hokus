@@ -41,6 +41,33 @@ static char *readFile(const char *path) {
     return buffer;
 }
 
+/* Directory of the file being compiled — import paths resolve against it. */
+static char moduleDir[1024];
+
+static void setModuleRoot(const char *path) {
+    const char *slash = strrchr(path, '/');
+    if (slash == NULL) { moduleDir[0] = '\0'; return; }
+    size_t n = (size_t)(slash - path + 1);
+    if (n >= sizeof moduleDir) n = sizeof moduleDir - 1;
+    memcpy(moduleDir, path, n);
+    moduleDir[n] = '\0';
+}
+
+static const char *readModule(const char *path) {
+    if (moduleDir[0] != '\0' && path[0] != '/') {
+        char full[1200];
+        int n = snprintf(full, sizeof full, "%s%s", moduleDir, path);
+        if (n > 0 && n < (int)sizeof full) {
+            FILE *probe = fopen(full, "rb");
+            if (probe != NULL) { fclose(probe); return readFile(full); }
+        }
+    }
+    FILE *probe = fopen(path, "rb");
+    if (probe == NULL) return NULL;
+    fclose(probe);
+    return readFile(path);
+}
+
 /* --emit-bin oracle: canonical serialization of a compiled chunk tree.
    Numbers go out as numberToString text so the roundtrip assembler compares
    exactly what the disassembler printed — never a re-decoded double. */
@@ -84,6 +111,7 @@ static void emitBinary(const char *source) {
 }
 
 static void runFile(VM *vm, const char *path, bool disasm, bool scan, int slice) {
+    setModuleRoot(path);
     char *source = readFile(path);
     if (scan) {
         lexDump(source);
@@ -166,6 +194,7 @@ static void repl(VM *vm) {
 
 int main(int argc, char **argv) {
     hkEmit = stdoutEmit;
+    hkReadModule = readModule;
     bool disasm = false;
     bool trace = false;
     bool scan = false;
@@ -212,8 +241,10 @@ int main(int argc, char **argv) {
     if (path == NULL) {
         repl(&vm);
     } else if (emitBin) {
+        setModuleRoot(path);
         emitBinary(readFile(path));
     } else if (emitImage) {
+        setModuleRoot(path);
         char *source = readFile(path);
         ObjFunction *fn = compile(source, (int)strlen(source));
         if (fn == NULL) { free(source); return 65; }

@@ -1,0 +1,7 @@
+import "modlib.hk";
+print MOD_VERSION;                // expect: modlib v1
+fun add1(x) { return x + 1; }
+print mod_twice(add1, 5);         // expect: 7
+print ModGreeter.greet("hokus");  // expect: hello, hokus
+import "modlib.hk";               // re-import simply re-runs the module
+print MOD_VERSION;                // expect: modlib v1

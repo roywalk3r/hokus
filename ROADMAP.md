@@ -49,10 +49,17 @@ and appears in the README or the playground.
   × 265 files in the gate). Mutants run step-sliced on wasm with an
   instruction cap so infinite loops can't hang the gate.
 
+- **Modules** — `import "lib.hk";` compiles the module inline into the
+  importing unit (include semantics: its top-level declarations land in the
+  same scope), top-level only, cycle-detected, resolved relative to the
+  importing file. No new opcodes. Native host only — the freestanding WASM
+  build has no filesystem and reports `import` as a compile error (gated).
+
 ## Next (in order)
 
-1. **Modules** — `import "lib.hk";` with a compiled-unit cache so programs
-   span files. Native host only; the playground keeps its single-file model.
+1. **Module namespaces** — `import "lib.hk" as lib;` so modules stop
+   polluting the importer's globals: emit one synthetic class per module
+   whose statics are the module's globals.
 
 ## Non-goals
 
