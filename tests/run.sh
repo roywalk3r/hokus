@@ -136,6 +136,13 @@ if [ -f web/hokus.wasm ]; then
     node tests/fuzz.js web/hokus.wasm || fail=1
     echo "== differential fuzz (native vs wasm) =="
     node tests/diff_fuzz.js $BIN web/hokus.wasm 200 || fail=1
+    echo "== benchmark trendline =="
+    if [ -f benchmarks/baseline.json ]; then
+        node tests/bench.js --check benchmarks/baseline.json > /tmp/hokus_bench_log 2>&1 \
+            && echo "PASS bench-trendline" || { echo "FAIL bench-trendline"; cat /tmp/hokus_bench_log; fail=1; }
+    else
+        echo "SKIP bench-trendline (no benchmarks/baseline.json)"
+    fi
 else
     echo "== wasm gate skipped (run: make wasm) =="
 fi

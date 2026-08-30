@@ -1,11 +1,18 @@
 #!/usr/bin/env node
-// Benchmarks for the WASM build. Usage: node tests/bench.js [web/hokus.wasm]
-// Compare native with: time bin/hokus - (same sources are printed below).
-import { readFileSync } from "node:fs";
+// Benchmarks + trendlines. Usage:
+//   node tests/bench.js                          run both hosts, print, write benchmarks/latest.json
+//   node tests/bench.js --check <baseline.json>  also fail if any bench > 1.5x baseline
+// Native timing uses a clock() wrap inside the language, so process-spawn and
+// compile time never pollute the number: t0 is the first executed statement.
+import { readFileSync, writeFileSync, mkdirSync, unlinkSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { dirname } from "node:path";
 
-const wasmPath = process.argv[2] ?? "web/hokus.wasm";
-const { instance } = await WebAssembly.instantiate(readFileSync(wasmPath), {});
-const vm = instance.exports;
+const args = process.argv.slice(2);
+const checkIdx = args.indexOf("--check");
+const baselinePath = checkIdx >= 0 ? args[checkIdx + 1] : null;
+const NATIVE = "bin/hokus";
+const OUT = "benchmarks/latest.json";
 
 const PROGRAMS = {
   "fib(28) recursion": "fun fib(n) { if (n < 2) return n; return fib(n - 1) + fib(n - 2); }\nprint fib(28);\n",
@@ -20,14 +27,62 @@ const PROGRAMS = {
     "var s = \"\";\nfor (var i = 0; i < 2000; i = i + 1) s = s + \"ab\";\nprint s;\n",
 };
 
-for (const [label, src] of Object.entries(PROGRAMS)) {
+const { instance } = await WebAssembly.instantiate(readFileSync("web/hokus.wasm"), {});
+const vm = instance.exports;
+
+function wasmMs(src) {
   const bytes = new TextEncoder().encode(src);
+  let best = Infinity;
   for (let i = 0; i < 3; i++) {
     new Uint8Array(vm.memory.buffer).set(bytes, vm.hk_source_buffer());
     const t0 = performance.now();
     const rc = vm.hk_run(bytes.length);
-    const ms = performance.now() - t0;
-    if (rc !== 0) { console.error(`${label}: run failed rc=${rc}`); process.exit(1); }
-    console.log(`${label}  run ${i + 1}: ${ms.toFixed(1)} ms`);
+    best = Math.min(best, performance.now() - t0);
+    if (rc !== 0) throw new Error(`wasm run failed rc=${rc}`);
   }
+  return best;
+}
+
+function nativeMs(src) {
+  const wrapped = "var bench_t0 = clock();\n" + src + "\nprint clock() - bench_t0;\n";
+  const tmp = `/tmp/hokus_bench_${process.pid}.hk`;
+  writeFileSync(tmp, wrapped);
+  try {
+    let best = Infinity;
+    for (let i = 0; i < 3; i++) {
+      const out = execFileSync(NATIVE, [tmp], { encoding: "utf8" });
+      const lines = out.trim().split("\n");
+      best = Math.min(best, Number(lines[lines.length - 1]) * 1000);
+    }
+    return best;
+  } finally {
+    try { unlinkSync(tmp); } catch {}
+  }
+}
+
+const results = {};
+for (const [label, src] of Object.entries(PROGRAMS)) {
+  const wasm = wasmMs(src), native = nativeMs(src);
+  results[label] = { wasm_ms: +wasm.toFixed(2), native_ms: +native.toFixed(2) };
+  console.log(`${label}: wasm ${wasm.toFixed(1)} ms, native ${native.toFixed(1)} ms`);
+}
+mkdirSync(dirname(OUT), { recursive: true });
+writeFileSync(OUT, JSON.stringify({ when: new Date().toISOString(), results }, null, 2) + "\n");
+
+if (baselinePath) {
+  const base = JSON.parse(readFileSync(baselinePath, "utf8")).results;
+  const FACTOR = 1.5;
+  let slow = 0;
+  for (const [label, m] of Object.entries(results)) {
+    for (const host of ["wasm_ms", "native_ms"]) {
+      const b = base[label]?.[host];
+      if (b == null) continue;
+      if (m[host] > b * FACTOR) {
+        console.log(`SLOW ${label} ${host}: ${m[host]} ms vs baseline ${b} ms (> ${FACTOR}x)`);
+        slow++;
+      }
+    }
+  }
+  if (slow) { console.error(`${slow} regressions vs ${baselinePath}`); process.exit(1); }
+  console.log(`all benches within ${FACTOR}x of ${baselinePath}`);
 }

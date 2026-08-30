@@ -6,3 +6,4 @@ tests/external/
 
 .playwright-mcp/
 playground-bytecode.png
+benchmarks/latest.json

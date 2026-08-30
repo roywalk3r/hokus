@@ -37,11 +37,14 @@ and appears in the README or the playground.
   raw f64 bits, line table preserved); `hokus file.hki` runs it with no
   source. Gated on goldens, error-golden traces, and corpus parity sweeps.
 
+- **Benchmark trendlines** — `tests/bench.js` times both hosts (native via
+  an in-language `clock()` wrap, so compile+spawn stay out of the number),
+  records `benchmarks/latest.json`, and `--check` fails beyond 1.5× the
+  committed `benchmarks/baseline.json`.
+
 ## Next (in order)
 
-1. **Benchmark trendlines** — bench.js records results to a committed log
-   so perf regressions are diffs, not memories.
-2. **Corpus-fuzz hybrid seeds** — mutate corpus programs (not just the
+1. **Corpus-fuzz hybrid seeds** — mutate corpus programs (not just the
    generator grammar) as fuzz inputs.
 
 ## Non-goals
