@@ -118,6 +118,26 @@ function genProgram(rnd) {
     }
   }
 
+  // occasionally: a closure capturing loop-scoped upvalues (classic clox case)
+  if (pick() < 0.35) {
+    lines.push("var mkAdder;");
+    lines.push("{ var base = 0;");
+    lines.push("  for (var j = 0; j < 3; j = j + 1) {");
+    lines.push("    fun add(x) { base = base + x; return base; }");
+    lines.push("    mkAdder = add; } }");
+    for (let c = 0; c < 1 + int(3); c++) lines.push(`print mkAdder(${int(9) + 1});`);
+  }
+
+  // occasionally: string vars through if/else branches + equality
+  if (pick() < 0.35) {
+    const name = `s${varCount++}`;
+    const a = ['"alpha"', '"beta"', '""'][int(3)], b = ['"gamma"', a][int(2)];
+    lines.push(`var ${name} = ${a};`);
+    lines.push(`if (${numExpr(1)} > ${int(99)}) ${name} = ${b}; else ${name} = ${name} + "!";`);
+    lines.push(`print ${name};`);
+    lines.push(`print ${name} == ${a} + "!";`);
+  }
+
   // occasionally: a class with numeric fields and methods
   if (pick() < 0.4) {
     lines.push("class Box {");
