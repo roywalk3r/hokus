@@ -138,6 +138,47 @@ function genProgram(rnd) {
     lines.push(`print ${name} == ${a} + "!";`);
   }
 
+  // occasionally: two closures sharing one captured variable, both escaping
+  // the block scope (classic clox upvalue-sharing case)
+  if (pick() < 0.3) {
+    const k = int(5) + 1;
+    lines.push("var sharedInc;\nvar sharedRead;");
+    lines.push("{ var c = 10;");
+    lines.push(`  fun inc() { c = c + ${k}; }`);
+    lines.push("  fun rd() { return c; }");
+    lines.push("  sharedInc = inc;");
+    lines.push("  sharedRead = rd; }");
+    for (let c = 0; c < 1 + int(3); c++) lines.push("sharedInc();");
+    lines.push("print sharedRead();");
+    lines.push("sharedInc();");
+    lines.push("print sharedRead();");
+  }
+
+  // occasionally: a method that manufactures a closure (closure escaping a class)
+  if (pick() < 0.3) {
+    lines.push("class Factory {");
+    lines.push("  init(seed) { this.seed = seed; }");
+    lines.push("  make() {");
+    lines.push("    var s = this.seed;");
+    lines.push("    fun product() { return s * 2; }");
+    lines.push("    return product;");
+    lines.push("  }");
+    lines.push("}");
+    lines.push(`var f = Factory(${int(49) + 1}).make();`);
+    lines.push("print f();");
+  }
+
+  // occasionally: string churn inside a function body (GC pressure + returns)
+  if (pick() < 0.3) {
+    const n = int(90) + 10;
+    lines.push("fun churn(t) {");
+    lines.push('  var acc = "";');
+    lines.push("  for (var k = 0; k < " + n + "; k = k + 1) acc = acc + \"x\";");
+    lines.push("  return acc + t;");
+    lines.push("}");
+    lines.push('print churn("!");');
+  }
+
   // occasionally: a class with numeric fields and methods
   if (pick() < 0.4) {
     lines.push("class Box {");
