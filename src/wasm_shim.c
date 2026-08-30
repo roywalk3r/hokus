@@ -6,7 +6,9 @@
 #include "compiler.h"
 #include "debug.h"
 
-#define HEAP_SIZE (16 * 1024 * 1024)
+/* Bump heap; HK_FREE is a no-op here, so GC recycles reachability only —
+   size this for a full session of stepped execution, not one run. */
+#define HEAP_SIZE (32 * 1024 * 1024)
 #define OUT_SIZE  (256 * 1024)
 #define SRC_SIZE  (256 * 1024)
 

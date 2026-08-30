@@ -1,0 +1,11 @@
+var a = "he" + "llo";
+var b = "hello";
+print a == b;
+var c = a;
+print c == b;
+print "he" + "llo" == "hello";
+var x = "";
+for (var i = 0; i < 5; i = i + 1) x = x + "ab";
+var y = "ababababab";
+print x == y;
+print x == "ababababab";
