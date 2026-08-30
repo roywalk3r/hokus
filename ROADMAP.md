@@ -24,15 +24,15 @@ and appears in the README or the playground.
   0 fail / 4 documented skips), differential fuzzer (native vs wasm,
   byte-identical output, seeded valid-program generator incl. closures and
   error paths), GC collect-on-every-allocation stress build gated on the
-  golden corpus and the closure/class/string/function subtrees.
+  golden corpus and the closure/class/string/function subtrees),
+  differential shapes incl. shared-upvalue closures and closures escaping
+  class methods.
 
 ## Next (in order)
 
-1. **Deeper fuzz shapes** — nested closures sharing upvalues, methods
-   returning closures, string-heavy loops in the differential generator.
-2. **REPL conveniences** — multi-line input accumulation (brace-depth
+1. **REPL conveniences** — multi-line input accumulation (brace-depth
    aware) so function/class definitions paste cleanly.
-3. **Disasm-to-golden selftest** — recompile every golden's disassembly
+2. **Disasm-to-golden selftest** — recompile every golden's disassembly
    listing and require identical bytecode (assembler roundtrip, the
    disassembler's inverse problem).
 
