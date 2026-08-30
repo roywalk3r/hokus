@@ -10,6 +10,8 @@ $BIN --help >/dev/null 2>&1 && echo "PASS --help" || { echo "FAIL --help"; fail=
 $BIN --unknown-flag >/dev/null 2>&1
 [ $? -eq 64 ] && echo "PASS unknown-flag-exits-64" || { echo "FAIL unknown-flag"; fail=1; }
 $BIN --trace examples/fib.hk 2>&1 | grep -q 'OP_LOOP' && echo "PASS --trace" || { echo "FAIL --trace"; fail=1; }
+HOKUS_STATS=1 $BIN examples/fib.hk 2>&1 | grep -qx 'stats: 8 allocations, 0 GC collections' \
+    && echo "PASS stats" || { echo "FAIL stats"; fail=1; }
 
 echo "== golden tests =="
 for f in tests/golden/*.hk; do
