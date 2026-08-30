@@ -7,12 +7,12 @@ BIN = bin/hokus
 
 all: $(BIN)
 
-$(BIN): $(SRC_CORE) src/debug.c src/main.c $(HDRS)
+$(BIN): $(SRC_CORE) src/debug.c src/image.c src/main.c $(HDRS)
 	@mkdir -p bin
 	$(CC) $(CFLAGS) -o $@ $(filter %.c,$^)
 
 # collect-on-every-allocation build — stress gate for GC rooting bugs
-bin/hokus-gcstress: $(SRC_CORE) src/debug.c src/main.c $(HDRS)
+bin/hokus-gcstress: $(SRC_CORE) src/debug.c src/image.c src/main.c $(HDRS)
 	@mkdir -p bin
 	$(CC) $(CFLAGS) -DHK_GC_STRESS -o $@ $(filter %.c,$^)
 

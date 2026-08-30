@@ -526,12 +526,9 @@ static Value clockNative(int argCount, Value *args) {
 
 /* Compile source and prime the VM's first frame without executing anything.
    Returns INTERPRET_OK (ready to slice) or INTERPRET_COMPILE_ERROR. */
-InterpretResult vmStart(VM *vm, const char *source, int sourceLen) {
+InterpretResult vmStartFunction(VM *vm, ObjFunction *function) {
     tableSet(&vm->globals, copyString("clock", 5),
              OBJ_VAL(newNative(clockNative)));
-    ObjFunction *function = compile(source, sourceLen);
-    if (function == NULL) return INTERPRET_COMPILE_ERROR;
-
     ObjClosure *closure = newClosure(function);
     push(vm, OBJ_VAL(closure));
     CallFrame *frame = &vm->frames[vm->frameCount++];
@@ -539,6 +536,12 @@ InterpretResult vmStart(VM *vm, const char *source, int sourceLen) {
     frame->ip = function->chunk->code;
     frame->slots = vm->stack;
     return INTERPRET_OK;
+}
+
+InterpretResult vmStart(VM *vm, const char *source, int sourceLen) {
+    ObjFunction *function = compile(source, sourceLen);
+    if (function == NULL) return INTERPRET_COMPILE_ERROR;
+    return vmStartFunction(vm, function);
 }
 
 /* Execute up to `budget` instructions (-1 = unlimited).

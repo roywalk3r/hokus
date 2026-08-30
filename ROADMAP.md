@@ -33,13 +33,16 @@ and appears in the README or the playground.
   chunk tree (`--emit-bin` oracle): code bytes exact, constants per
   referenced slot. Runs over goldens, examples, and the full Lox corpus.
 
+- **Bytecode images** — `--emit-image` writes a `.hki` (magic `HKI1`,
+  raw f64 bits, line table preserved); `hokus file.hki` runs it with no
+  source. Gated on goldens, error-golden traces, and corpus parity sweeps.
+
 ## Next (in order)
 
-1. **Bytecode images** — `--emit-bin` already serializes the compiled chunk
-   tree; add the inverse (load and execute) so a `.hki` file runs with no
-   source present. Gated by image → run == source → run on the corpus.
-2. **Benchmark trendlines** — bench.js records results to a committed log
+1. **Benchmark trendlines** — bench.js records results to a committed log
    so perf regressions are diffs, not memories.
+2. **Corpus-fuzz hybrid seeds** — mutate corpus programs (not just the
+   generator grammar) as fuzz inputs.
 
 ## Non-goals
 

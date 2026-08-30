@@ -21,6 +21,7 @@ source ─► lexer ─► Pratt parser ─► single-pass bytecode compiler ─
 | Front end | `src/lexer.c`, `src/compiler.c` | Pratt parser, single-pass codegen, locals, jumps for `if`/`while`/`for`/`and`/`or` |
 | Tooling | `src/debug.c` | disassembler (`--disasm`) |
 | Native host | `src/main.c` | REPL + file runner |
+| Images | `src/image.c` | `.hki` bytecode images: compile once, run without source (line table preserved for error traces) |
 | Browser host | `src/wasm_shim.c` | bump allocator over a static 16 MB heap, output captured in a static buffer — **zero imports, zero emscripten** |
 | Webapp | `web/index.html` | playground: source editor, live bytecode pane, execution trace, **step-through debugger**; JS only shuttles bytes in/out, all logic is the C VM |
 | GC | `src/gc.c` | mark-sweep over the VM's root set; the WASM arena sweeps by unlinking |
@@ -68,6 +69,8 @@ bin/hokus -t examples/fib.hk       # execution trace
 bin/hokus -s examples/fib.hk       # token dump (jlox format)
 bin/hokus --slice 100 examples/fib.hk   # run in 100-instruction slices
 HOKUS_STATS=1 bin/hokus examples/fib.hk # allocation + GC stats on stderr
+bin/hokus --emit-image examples/fib.hk > fib.hki   # compile to bytecode image
+bin/hokus fib.hki            # run with no source in sight
 npm run playground    # serve web/ at http://localhost:8000
 make artifact         # hokus-artifact.html — whole playground, one file, WASM embedded
 ```

@@ -94,6 +94,30 @@ node tests/disasm_roundtrip.js $BIN tests/golden/*.hk tests/golden_disasm/*.hk e
     | tail -1 | grep -q ", 0 failed," \
     && echo "PASS disasm-roundtrip" || { echo "FAIL disasm-roundtrip"; fail=1; }
 
+echo "== bytecode images (.hki: emit then run, source-free) =="
+imgfail=0
+for f in tests/golden/*.hk; do
+    name=$(basename "$f" .hk)
+    if $BIN --emit-image "$f" > /tmp/hokus_img.hki && $BIN /tmp/hokus_img.hki > /tmp/hokus_out 2>&1 \
+        && diff -q "tests/golden/$name.expected" /tmp/hokus_out >/dev/null; then
+        :
+    else
+        echo "FAIL img:$name"; imgfail=1
+    fi
+done
+[ $imgfail -eq 0 ] && echo "PASS images:goldens" || fail=1
+for f in tests/golden_errors/*.err.hk; do
+    name=$(basename "$f" .err.hk)
+    $BIN --emit-image "$f" > /tmp/hokus_img.hki 2>/dev/null
+    $BIN /tmp/hokus_img.hki > /tmp/hokus_out 2>&1
+    if [ $? -eq 70 ] && [ ! -f "$f.expected" ] || diff -q "$f.expected" /tmp/hokus_out >/dev/null 2>&1; then
+        :
+    else
+        echo "FAIL img:$name (error trace drifted)"; fail=1
+    fi
+done
+echo "PASS images:error-traces"
+
 echo "== slice-equivalence tests =="
 for f in tests/golden/*.hk; do
     name=$(basename "$f" .hk)
@@ -125,6 +149,18 @@ if [ -d "$LOX" ]; then
     node tests/disasm_roundtrip.js "$BIN" $(find "$LOX" -name '*.lox' | sort) \
         | tail -1 | grep -q ", 0 failed," \
         && echo "PASS corpus-roundtrip" || { echo "FAIL corpus-roundtrip"; fail=1; }
+    echo "== external: image-run parity (closure/call/class subtrees) =="
+    imgparity=0
+    for f in "$LOX"/closure/*.lox "$LOX"/call/*.lox "$LOX"/class/*.lox; do
+        o1=$($BIN "$f" 2>&1); c1=$?
+        [ $c1 -eq 65 ] && continue
+        $BIN --emit-image "$f" > /tmp/hokus_img.hki 2>/dev/null || continue
+        o2=$($BIN /tmp/hokus_img.hki 2>&1); c2=$?
+        if [ "$o1" != "$o2" ] || [ $c1 -ne $c2 ]; then
+            echo "FAIL img-parity:$f"; imgparity=1
+        fi
+    done
+    [ $imgparity -eq 0 ] && echo "PASS image-parity" || fail=1
 else
     echo "== external Lox suite not present (run: ./tests/fetch_lox.sh) =="
 fi

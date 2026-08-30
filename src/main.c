@@ -7,6 +7,7 @@
 
 #include "compiler.h"
 #include "debug.h"
+#include "image.h"
 #include "lexer.h"
 #include "vm.h"
 
@@ -169,6 +170,7 @@ int main(int argc, char **argv) {
     bool trace = false;
     bool scan = false;
     bool emitBin = false;
+    bool emitImage = false;
     int slice = 0;
     const char *path = NULL;
     for (int i = 1; i < argc; i++) {
@@ -180,6 +182,8 @@ int main(int argc, char **argv) {
             scan = true;
         } else if (strcmp(argv[i], "--emit-bin") == 0) {
             emitBin = true;
+        } else if (strcmp(argv[i], "--emit-image") == 0) {
+            emitImage = true;
         } else if (strcmp(argv[i], "--slice") == 0 && i + 1 < argc) {
             slice = atoi(argv[++i]);
             if (slice < 1) slice = 1;
@@ -190,7 +194,9 @@ int main(int argc, char **argv) {
                 "  -d, --disasm     compile and print bytecode listing\n"
                 "  -t, --trace      print each instruction as it executes\n"
                 "  -s, --scan       token dump (jlox format), no execution\n"
-                "  --slice N        execute in N-instruction budgeted slices\n");
+                "  --slice N        execute in N-instruction budgeted slices\n"
+                "  --emit-image     write a .hki bytecode image to stdout\n"
+                "  (a .hki file)    run a bytecode image, no source needed\n");
             return 0;
         } else if (argv[i][0] == '-') {
             fprintf(stderr, "hokus: unknown flag '%s' (try --help)\n", argv[i]);
@@ -207,6 +213,27 @@ int main(int argc, char **argv) {
         repl(&vm);
     } else if (emitBin) {
         emitBinary(readFile(path));
+    } else if (emitImage) {
+        char *source = readFile(path);
+        ObjFunction *fn = compile(source, (int)strlen(source));
+        if (fn == NULL) { free(source); return 65; }
+        writeImage(fn, stdout);
+        free(source);
+    } else if (strstr(path, ".hki") != NULL) {
+        FILE *in = fopen(path, "rb");
+        if (in == NULL) {
+            fprintf(stderr, "Could not open file \"%s\".\n", path);
+            return 74;
+        }
+        ObjFunction *fn = readImage(in);
+        fclose(in);
+        if (fn == NULL) {
+            fprintf(stderr, "hokus: \"%s\" is not a valid bytecode image\n", path);
+            return 65;
+        }
+        vmStartFunction(&vm, fn);
+        InterpretResult result = vmRunSlice(&vm, -1);
+        if (result == INTERPRET_RUNTIME_ERROR) return 70;
     } else {
         runFile(&vm, path, disasm, scan, slice);
     }
