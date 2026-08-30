@@ -16,7 +16,7 @@ source ─► lexer ─► Pratt parser ─► single-pass bytecode compiler ─
 | Layer | Where | Notes |
 |---|---|---|
 | Bytecode VM | `src/vm.c` | stack machine, 64 call frames, call-by-value functions |
-| Objects | `src/value.c` | heap strings (FNV-1a hashed interning key), custom `%.14g` formatter |
+| Objects | `src/value.c` | heap strings interned in a global weak-key table (FNV-1a), custom `%.14g` formatter |
 | Globals | `src/table.c` | open-addressing hash table with tombstones |
 | Front end | `src/lexer.c`, `src/compiler.c` | Pratt parser, single-pass codegen, locals, jumps for `if`/`while`/`for`/`and`/`or` |
 | Tooling | `src/debug.c` | disassembler (`--disasm`) |
