@@ -10,49 +10,60 @@ typedef struct ObjFunction ObjFunction;
 typedef struct ObjNative ObjNative;
 struct Chunk;
 
-typedef enum {
-    VAL_NIL,
-    VAL_BOOL,
-    VAL_NUMBER,
-    VAL_OBJ,
-} ValueType;
+/* NaN-boxed values: every Value is one 64-bit word. Numbers are raw doubles;
+   non-numbers hide in the unused quiet-NaN exponent range — nil/true/false as
+   QNAN|tag, heap objects as sign|QNAN|pointer. Halves the VM stack's memory
+   and turns number boxing/unboxing into moves. */
+typedef uint64_t Value;
 
-typedef struct {
-    ValueType type;
-    union {
-        bool boolean;
-        double number;
-        Obj *obj;
-    } as;
-} Value;
+#define SIGN_BIT    ((uint64_t)0x8000000000000000)
+#define QNAN        ((uint64_t)0x7ffc000000000000)
 
-#define NIL_VAL         ((Value){VAL_NIL, {.number = 0}})
-#define BOOL_VAL(v)     ((Value){VAL_BOOL, {.boolean = v}})
-#define NUMBER_VAL(v)   ((Value){VAL_NUMBER, {.number = v}})
-#define OBJ_VAL(o)      ((Value){VAL_OBJ, {.obj = (Obj *)(o)}})
+#define TAG_NIL     1
+#define TAG_FALSE   2
+#define TAG_TRUE    3
 
-#define IS_NIL(v)       ((v).type == VAL_NIL)
-#define IS_BOOL(v)      ((v).type == VAL_BOOL)
-#define IS_NUMBER(v)    ((v).type == VAL_NUMBER)
-#define IS_OBJ(v)       ((v).type == VAL_OBJ)
-#define IS_STRING(v)    (IS_OBJ(v) && ((Obj *)(v).as.obj)->type == OBJ_STRING)
-#define IS_FUNCTION(v)  (IS_OBJ(v) && ((Obj *)(v).as.obj)->type == OBJ_FUNCTION)
+#define NIL_VAL     ((Value)(QNAN | TAG_NIL))
+#define TRUE_VAL    ((Value)(QNAN | TAG_TRUE))
+#define FALSE_VAL   ((Value)(QNAN | TAG_FALSE))
 
-#define AS_BOOL(v)      ((v).as.boolean)
-#define AS_NUMBER(v)    ((v).as.number)
-#define AS_OBJ(v)       ((v).as.obj)
-#define AS_STRING(v)    ((ObjString *)(v).as.obj)
-#define AS_FUNCTION(v)  ((ObjFunction *)(v).as.obj)
-#define IS_NATIVE(v)    (IS_OBJ(v) && ((Obj *)(v).as.obj)->type == OBJ_NATIVE)
-#define AS_NATIVE(v)    (((ObjNative *)(v).as.obj)->fn)
-#define IS_CLOSURE(v)   (IS_OBJ(v) && ((Obj *)(v).as.obj)->type == OBJ_CLOSURE)
-#define AS_CLOSURE(v)   ((ObjClosure *)(v).as.obj)
-#define IS_CLASS(v)     (IS_OBJ(v) && ((Obj *)(v).as.obj)->type == OBJ_CLASS)
-#define AS_CLASS(v)     ((ObjClass *)(v).as.obj)
-#define IS_INSTANCE(v)  (IS_OBJ(v) && ((Obj *)(v).as.obj)->type == OBJ_INSTANCE)
-#define AS_INSTANCE(v)  ((ObjInstance *)(v).as.obj)
-#define IS_BOUND_METHOD(v) (IS_OBJ(v) && ((Obj *)(v).as.obj)->type == OBJ_BOUND_METHOD)
-#define AS_BOUND_METHOD(v) ((ObjBoundMethod *)(v).as.obj)
+static inline Value numToValue(double num) {
+    union { uint64_t bits; double num; } u;
+    u.num = num;
+    return u.bits;
+}
+static inline double valueToNum(Value value) {
+    union { uint64_t bits; double num; } u;
+    u.bits = value;
+    return u.num;
+}
+
+#define BOOL_VAL(v)     ((v) ? TRUE_VAL : FALSE_VAL)
+#define NUMBER_VAL(v)   (numToValue(v))
+#define OBJ_VAL(o)      ((Value)(SIGN_BIT | QNAN | (uint64_t)(uintptr_t)(o)))
+
+#define IS_NIL(v)       ((v) == NIL_VAL)
+#define IS_BOOL(v)      (((v) | 1) == TRUE_VAL)
+#define IS_NUMBER(v)    (((v) & QNAN) != QNAN)
+#define IS_OBJ(v)       (((v) & (QNAN | SIGN_BIT)) == (QNAN | SIGN_BIT))
+#define IS_STRING(v)    (IS_OBJ(v) && AS_OBJ(v)->type == OBJ_STRING)
+#define IS_FUNCTION(v)  (IS_OBJ(v) && AS_OBJ(v)->type == OBJ_FUNCTION)
+
+#define AS_BOOL(v)      ((v) == TRUE_VAL)
+#define AS_NUMBER(v)    (valueToNum(v))
+#define AS_OBJ(v)       ((Obj *)(uintptr_t)((v) & ~(SIGN_BIT | QNAN)))
+#define AS_STRING(v)    ((ObjString *)AS_OBJ(v))
+#define AS_FUNCTION(v)  ((ObjFunction *)AS_OBJ(v))
+#define IS_NATIVE(v)    (IS_OBJ(v) && AS_OBJ(v)->type == OBJ_NATIVE)
+#define AS_NATIVE(v)    (((ObjNative *)AS_OBJ(v))->fn)
+#define IS_CLOSURE(v)   (IS_OBJ(v) && AS_OBJ(v)->type == OBJ_CLOSURE)
+#define AS_CLOSURE(v)   ((ObjClosure *)AS_OBJ(v))
+#define IS_CLASS(v)     (IS_OBJ(v) && AS_OBJ(v)->type == OBJ_CLASS)
+#define AS_CLASS(v)     ((ObjClass *)AS_OBJ(v))
+#define IS_INSTANCE(v)  (IS_OBJ(v) && AS_OBJ(v)->type == OBJ_INSTANCE)
+#define AS_INSTANCE(v)  ((ObjInstance *)AS_OBJ(v))
+#define IS_BOUND_METHOD(v) (IS_OBJ(v) && AS_OBJ(v)->type == OBJ_BOUND_METHOD)
+#define AS_BOUND_METHOD(v) ((ObjBoundMethod *)AS_OBJ(v))
 
 typedef enum {
     OBJ_STRING, OBJ_FUNCTION, OBJ_NATIVE, OBJ_CLOSURE, OBJ_UPVALUE,

@@ -20,16 +20,15 @@ static void emitPadded(const char *s, int width) {
 }
 
 static void emitValueBrief(Value v) {
-    switch (v.type) {
-        case VAL_NIL: emit("nil"); break;
-        case VAL_BOOL: emit(AS_BOOL(v) ? "true" : "false"); break;
-        case VAL_NUMBER: {
-            char buf[32];
-            numberToString(AS_NUMBER(v), buf, sizeof(buf));
-            emit(buf);
-            break;
-        }
-        case VAL_OBJ:
+    if (IS_NIL(v)) { emit("nil"); return; }
+    if (IS_BOOL(v)) { emit(AS_BOOL(v) ? "true" : "false"); return; }
+    if (IS_NUMBER(v)) {
+        char buf[32];
+        numberToString(AS_NUMBER(v), buf, sizeof(buf));
+        emit(buf);
+        return;
+    }
+    {
             if (IS_STRING(v)) {
                 emit("\"");
                 emit(AS_STRING(v)->chars);
@@ -42,7 +41,6 @@ static void emitValueBrief(Value v) {
             } else {
                 emit("<obj>");
             }
-            break;
     }
 }
 

@@ -238,22 +238,10 @@ void numberToString(double value, char *buf, int bufSize) {
 }
 
 bool valuesEqual(Value a, Value b) {
-    if (a.type != b.type) return false;
-    switch (a.type) {
-        case VAL_BOOL:   return AS_BOOL(a) == AS_BOOL(b);
-        case VAL_NIL:    return true;
-        case VAL_NUMBER: return AS_NUMBER(a) == AS_NUMBER(b);
-        case VAL_OBJ: {
-            if (IS_STRING(a)) {
-                ObjString *sa = AS_STRING(a), *sb = AS_STRING(b);
-                return sa == sb ||
-                       (sa->length == sb->length && sa->hash == sb->hash &&
-                        hk_strncmp(sa->chars, sb->chars, sa->length) == 0);
-            }
-            return AS_OBJ(a) == AS_OBJ(b);
-        }
-    }
-    return false;
+    /* Numbers are bitwise-distinct NaN-space encodings; everything else is a
+       unique 64-bit token (interned strings, singleton nil/true/false). */
+    if (IS_NUMBER(a) && IS_NUMBER(b)) return AS_NUMBER(a) == AS_NUMBER(b);
+    return a == b;
 }
 
 int hk_strncmp(const char *a, const char *b, int n) {
@@ -265,14 +253,13 @@ int hk_strncmp(const char *a, const char *b, int n) {
 
 void printValue(Value value) {
     char buf[64];
-    switch (value.type) {
-        case VAL_BOOL:   hkEmit(AS_BOOL(value) ? "true" : "false"); break;
-        case VAL_NIL:    hkEmit("nil"); break;
-        case VAL_NUMBER:
-            numberToString(AS_NUMBER(value), buf, sizeof(buf));
-            hkEmit(buf);
-            break;
-        case VAL_OBJ:
+    if (IS_BOOL(value))      hkEmit(AS_BOOL(value) ? "true" : "false");
+    else if (IS_NIL(value))  hkEmit("nil");
+    else if (IS_NUMBER(value)) {
+        numberToString(AS_NUMBER(value), buf, sizeof(buf));
+        hkEmit(buf);
+    }
+    else {
             if (IS_STRING(value)) {
                 hkEmit(AS_STRING(value)->chars); /* always null-terminated */
             } else if (IS_CLASS(value)) {
@@ -306,7 +293,6 @@ void printValue(Value value) {
                     hkEmit("<script>");
                 }
             }
-            break;
     }
     (void)hk_strlen;
 }

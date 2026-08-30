@@ -47,12 +47,13 @@ stock Lox: no `static` methods (skipped in the corpus harness, loudly).
 
 ## Performance
 
-Recursive `fib(28)` (~1.03M calls): **~46 ms native**, **~54 ms raw WASM** in Node
-(warm; ~96 ms cold on first instantiation) — dispatch is a computed-goto jump table
-(labels as values) on both hosts. A 200k-iteration method-call loop runs
-**~25 ms native, ~30 ms WASM** — `OP_INVOKE`/`OP_SUPER_INVOKE` dispatch directly
+Recursive `fib(28)` (~1.03M calls): **~35 ms native**, **~46 ms raw WASM** in Node
+(warm; ~90 ms cold on first instantiation) — dispatch is a computed-goto jump table
+(labels as values) on both hosts, and values are NaN-boxed 64-bit words, so boxing
+a number is a move, not a heap round-trip. A 200k-iteration method-call loop runs
+**~20 ms native, ~27 ms WASM** — `OP_INVOKE`/`OP_SUPER_INVOKE` dispatch directly
 without allocating a bound-method object per call (~24% faster than the
-GET_PROPERTY+CALL path). The no-libc WASM build tracks within **~1.2× of native** —
+GET_PROPERTY+CALL path). The no-libc WASM build tracks within **~1.3× of native** —
 same C object code, same clang. Reproduce: `node tests/bench.js`.
 
 ## Build & run
