@@ -49,7 +49,16 @@ function genProgram(rnd) {
   }
 
   const lines = [];
+  const funs = []; /* name -> arity, number-typed in/out only */
+
   function stmt(depth, indent) {
+    if (depth > 0 && funs.length && pick() < 0.08) {
+      const f = funs[int(funs.length)];
+      const args = Array.from({ length: f.arity }, () => numExpr(1)).join(", ");
+      lines.push(`${"  ".repeat(indent)}print ${f.name}(${args});`);
+      return;
+    }
+
     const k = pick();
     const pad = "  ".repeat(indent);
     if (k < 0.35) {
@@ -76,8 +85,35 @@ function genProgram(rnd) {
       stmt(depth - 1, indent + 1);
       vars.length = saved; // loop var leaves scope
       lines.push(`${pad}}`);
+    } else if (k < 0.87 && depth > 0) {
+      const i = `w${varCount++}`;
+      lines.push(`${pad}var ${i} = 0;`);
+      lines.push(`${pad}while (${i} < ${int(4) + 1}) {`);
+      const saved = vars.length;
+      lines.push(`${pad}  ${i} = ${i} + 1;`);
+      stmt(depth - 1, indent + 1);
+      vars.length = saved;
+      lines.push(`${pad}}`);
     } else {
       lines.push(`${pad}print ${strExpr()};`);
+    }
+  }
+
+  // zero to two top-level number functions, including a closure when nested
+  if (pick() < 0.6) {
+    const nf = pick() < 0.3 ? 2 : 1;
+    for (let f = 0; f < nf; f++) {
+      const name = `fn${f}`;
+      const arity = int(3);
+      const ps = Array.from({ length: arity }, (_, j) => `a${j}`);
+      vars.push(...ps);
+      lines.push(`fun ${name}(${ps.join(", ")}) {`);
+      lines.push(`  var r = ${numExpr(2)};`);
+      if (pick() < 0.4) lines.push(`  r = r * ${numExpr(1)};`);
+      lines.push(`  return r;`);
+      lines.push(`}`);
+      vars.length -= ps.length;
+      funs.push({ name, arity });
     }
   }
 
