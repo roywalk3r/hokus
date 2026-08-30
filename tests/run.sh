@@ -75,6 +75,8 @@ if [ -f web/hokus.wasm ]; then
     node tests/wasm_runner.js web/hokus.wasm tests/golden || fail=1
     echo "== fuzz gate =="
     node tests/fuzz.js web/hokus.wasm || fail=1
+    echo "== differential fuzz (native vs wasm) =="
+    node tests/diff_fuzz.js $BIN web/hokus.wasm 200 || fail=1
 else
     echo "== wasm gate skipped (run: make wasm) =="
 fi
