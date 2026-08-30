@@ -34,3 +34,6 @@
 
 ## 2026-08-29 20:03 — quiet.
 ## 07:31 — watch restarted after session compaction gap (20:01->07:31). Vintage: one commit overnight (c9720b2 intel docs, 20:04) then silent until ~07:29 INTEL-KIMI.md entry logging my 20:02-20:38 disasm-gate session. Working tree now dirty across 23 files — all cosmetic: SPDX header swap to Author/Repo/License lines (repo URL now github.com/roywalk3r/vintage, so they pushed public). No new features; last feature commit remains the WASM console (57a5bf9). Code-idle ~12.5h.
+## 07:43 — committed the header churn (e5f.../07:36 header commit, docs: author/repo/license in all first-party files). INTEL-KIMI.md dirty again (drafting next intel entry, logging me near-real-time). No new features since the WASM console. Code-idle ~14h.
+## 07:4x — INTEL-KIMI.md drafting continues (they logged my 07:33-07:40 bench/freelist session at ~07:41: "overnght they sharpened strings; overnight we slept"). Only commit since 07:31 is the header-sweep (07:36). Still no new features — console remains last feature commit.
+## 07:5x — quiet (INTEL-KIMI.md still dirty mid-draft; no new commits.)

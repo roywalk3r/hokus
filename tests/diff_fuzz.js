@@ -162,6 +162,21 @@ function wasmRun(src) {
   return { code, out };
 }
 
+// Error rounds: every program ends in a deliberate runtime error after some
+// valid computation — gate the error paths (message + clox trace + line no).
+function genErrorProgram(rnd) {
+  const src = genProgram(rnd);
+  const kind = Math.floor(rnd() * 5);
+  const tails = [
+    "print nope_undefined;\n",
+    "clock(1);\n",
+    "var x = 3; x();\n",
+    'print 1 + "s";\n',
+    "class E {} var e = E(); print e.missing;\n",
+  ];
+  return src + tails[kind];
+}
+
 let mismatches = 0;
 /* Native uses sysexits (65/70), the shim returns raw InterpretResult (1/2). */
 const norm = (code) => (code === 65 ? 1 : code === 70 ? 2 : code);
@@ -186,6 +201,27 @@ for (let round = 0; round < ROUNDS; round++) {
     }
   }
 }
-console.log(`diff fuzz: ${ROUNDS} rounds, ${mismatches} mismatches`);
+const ERROR_ROUNDS = Math.max(20, ROUNDS / 2 | 0);
+for (let round = 0; round < ERROR_ROUNDS; round++) {
+  const src = genErrorProgram(lcg(round * 104729 + 7));
+  let nat;
+  const tmp = `/tmp/hokus_diff_fuzz_${process.pid}.hk`;
+  writeFileSync(tmp, src);
+  try {
+    nat = { code: 0, out: execFileSync(native, [tmp], { encoding: "utf8" }) };
+  } catch (e) {
+    nat = { code: e.status ?? -1, out: (e.stdout ?? "") + (e.stderr ?? "") };
+  }
+  const was = wasmRun(src);
+  if (norm(nat.code) !== was.code || nat.out !== was.out) {
+    mismatches++;
+    if (mismatches <= 3) {
+      console.log(`MISMATCH error-round ${round}: native(${nat.code}) vs wasm(${was.code})`);
+      console.log("--- native ---\n" + nat.out.slice(-200));
+      console.log("--- wasm ---\n" + was.out.slice(-200));
+    }
+  }
+}
+console.log(`diff fuzz: ${ROUNDS} rounds + ${ERROR_ROUNDS} error rounds, ${mismatches} mismatches`);
 unlinkSync(`/tmp/hokus_diff_fuzz_${process.pid}.hk`);
 process.exit(mismatches ? 1 : 0);
