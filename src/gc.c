@@ -7,6 +7,8 @@
 extern Obj *hkObjects;              /* head of every allocated object */
 extern int hkGcCounter;             /* allocations since last GC */
 extern int hkGcThreshold;           /* collect when counter exceeds this */
+extern int hkAllocTotal;            /* cumulative allocations, stats export */
+extern int hkGcCollections;         /* cumulative GC passes, stats export */
 extern VM *hkActiveVM;              /* non-NULL only while run() is executing */
 
 #define GC_INITIAL_THRESHOLD 1024
@@ -195,6 +197,7 @@ static void sweep(void) {
 }
 
 void gcCollect(VM *vm) {
+    hkGcCollections++;
     markRoots(vm);
     traceReferences();
     sweep();
@@ -217,7 +220,7 @@ void gcFreeAll(void) {
 void gcOnAllocate(void) {
     if (hkGcThreshold == 0) hkGcThreshold = GC_INITIAL_THRESHOLD;
     hkGcCounter++;
-    if (hkActiveVM == NULL) return;
+    hkAllocTotal++;    if (hkActiveVM == NULL) return;
 #ifdef HK_GC_STRESS
     /* collect-before-every-allocate build: turns latent rooting bugs into
        deterministic failures instead of once-per-threshold coincidences */

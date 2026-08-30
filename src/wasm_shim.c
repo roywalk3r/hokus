@@ -134,6 +134,15 @@ int hk_step(int budget) {
 char *hk_output(void) { return outBuf; }
 int hk_output_length(void) { return outLen; }
 
+/* ---- runtime statistics (reset per run/prep) ---- */
+
+extern int hkAllocTotal;    /* value.c */
+extern int hkGcCollections; /* gc.c */
+
+int hk_stat_allocs(void) { return hkAllocTotal; }
+int hk_stat_gc_runs(void) { return hkGcCollections; }
+int hk_stat_heap_bytes(void) { return (int)heapUsed; }
+
 /* Compile-only: emits the bytecode listing to the output buffer.
    Returns 0 on success, 65 on compile error. */
 int hk_disasm(int sourceLength) {

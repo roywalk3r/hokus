@@ -59,6 +59,11 @@ static void runFile(VM *vm, const char *path, bool disasm, bool scan, int slice)
         if (result == INTERPRET_COMPILE_ERROR) exit(65);
         if (result == INTERPRET_RUNTIME_ERROR) exit(70);
     }
+    if (getenv("HOKUS_STATS")) {
+        extern int hkAllocTotal, hkGcCollections;
+        fprintf(stderr, "stats: %d allocations, %d GC collections\n",
+                hkAllocTotal, hkGcCollections);
+    }
     free(source);
 }
 

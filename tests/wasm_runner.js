@@ -39,6 +39,16 @@ for (const f of readdirSync(goldenDir).filter((f) => f.endsWith(".hk"))) {
     `exit ${code}, got ${JSON.stringify(read().slice(0, 120))}`);
 }
 
+// 1b. runtime stats: a string-building program must show allocations and a
+// nonzero heap bump; counters reset between runs
+{
+  vm.hk_run(load('var s = ""; for (var i = 0; i < 200; i = i + 1) s = s + "ab";'));
+  const a1 = vm.hk_stat_allocs(), h1 = vm.hk_stat_heap_bytes();
+  vm.hk_run(load("print 1;"));
+  check("stats", a1 > 200 && h1 > 4096 && vm.hk_stat_allocs() < a1,
+    `allocs=${a1} heap=${h1} after2=${vm.hk_stat_allocs()}`);
+}
+
 // 2. trace mode interleaves instruction lines with program output
 // (constant folding collapses literal arithmetic, so route one operand
 // through a variable to keep a live OP_ADD in the stream)

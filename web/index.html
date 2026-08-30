@@ -215,7 +215,11 @@ runBtn.addEventListener("click", () => {
   outEl.textContent = readOutput();
   statusEl.textContent =
       (status === 0 ? "ok" : status === 1 ? "compile error" : "runtime error")
-      + ` · ${ms} ms` + (trace ? " · traced" : "");
+      + ` · ${ms} ms`
+      + ` · ${vm.hk_stat_allocs()} allocs`
+      + ` · ${vm.hk_stat_gc_runs()} gc`
+      + ` · ${(vm.hk_stat_heap_bytes() / 1024).toFixed(0)} KB heap`
+      + (trace ? " · traced" : "");
 
   const drc = vm.hk_disasm(loadSource(src));
   bcEl.textContent = drc === 0

@@ -44,6 +44,8 @@ void freeValueArray(ValueArray *array) {
 Obj *hkObjects = NULL;
 int hkGcCounter = 0;
 int hkGcThreshold = 0;
+int hkAllocTotal = 0;
+int hkGcCollections = 0;
 VM *hkActiveVM = NULL;
 
 static Obj *allocateObj(size_t size, ObjType type) {
@@ -60,6 +62,8 @@ void objectsInit(void) {
     hkObjects = NULL;
     hkGcCounter = 0;
     hkGcThreshold = 0;
+    hkAllocTotal = 0;
+    hkGcCollections = 0;
     hkActiveVM = NULL;
     initTable(&hkStrings);
 }
