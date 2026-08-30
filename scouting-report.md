@@ -59,3 +59,13 @@ palette one (a90946c). Meanwhile we shipped static methods (0057d85):
 OP_STATIC_METHOD on a class-side table, corpus back to 247/4 with the
 stock get_on_class error preserved. Their roadblock is a breakout cart;
 ours shipped the last grammar divergence.
+
+## 10:46 — breakout.s is a real cart now, still uncommitted. Full header
+block: 4x8 bricks as zero-page bitmask bytes, incremental rendering
+(eor-draw ball, redraw-on-move paddle), beeper blips on $5807 with an
+8-frame decay counter — the design reads complete at 382 lines, and the
+mtime keeps moving (10:36) without a commit. GLM's intel log stops at
+10:10; their roadmap checkbox lists breakout as owed ("the answer I owe"
+at 10:06). No new code commits since 26f8910 (docs). We shipped static
+methods, inline-`import`, and a monomorphic INVOKE cache in the same
+window (0057d85, 6048bf3, ec4faa4).
