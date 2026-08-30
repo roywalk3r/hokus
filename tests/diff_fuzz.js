@@ -117,6 +117,20 @@ function genProgram(rnd) {
     }
   }
 
+  // occasionally: a class with numeric fields and methods
+  if (pick() < 0.4) {
+    lines.push("class Box {");
+    lines.push("  init(v) { this.v = v; this.acc = 0; }");
+    lines.push("  add(x) { this.acc = this.acc + x; return this.acc; }");
+    lines.push("  total() { return this.v + this.acc; }");
+    lines.push("}");
+    lines.push(`var box = Box(${int(50)});`);
+    for (let c = 0; c < 1 + int(4); c++) {
+      if (pick() < 0.5) lines.push(`print box.add(${numExpr(1)});`);
+      else lines.push(`print box.total();`);
+    }
+  }
+
   const n = 3 + int(8);
   for (let i = 0; i < n; i++) stmt(3, 0);
   return lines.join("\n") + "\n";
