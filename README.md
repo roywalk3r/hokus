@@ -67,6 +67,7 @@ bin/hokus -d examples/strings.hk   # disassembler
 bin/hokus -t examples/fib.hk       # execution trace
 bin/hokus -s examples/fib.hk       # token dump (jlox format)
 bin/hokus --slice 100 examples/fib.hk   # run in 100-instruction slices
+HOKUS_STATS=1 bin/hokus examples/fib.hk # allocation + GC stats on stderr
 npm run playground    # serve web/ at http://localhost:8000
 make artifact         # hokus-artifact.html — whole playground, one file, WASM embedded
 ```
