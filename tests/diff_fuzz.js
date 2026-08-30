@@ -24,6 +24,7 @@ function genProgram(rnd) {
   function numExpr(depth) {
     if (depth <= 0 || pick() < 0.4) {
       if (vars.length && pick() < 0.5) return vars[int(vars.length)];
+      if (pick() < 0.15) return `(0 - ${int(100) + 1})`; /* negative literal */
       return pick() < 0.7 ? String(int(1000)) : `${int(100)}.${int(10)}`;
     }
     const ops = ["+", "-", "*", "/"];
@@ -124,10 +125,23 @@ function genProgram(rnd) {
     lines.push("  add(x) { this.acc = this.acc + x; return this.acc; }");
     lines.push("  total() { return this.v + this.acc; }");
     lines.push("}");
-    lines.push(`var box = Box(${int(50)});`);
-    for (let c = 0; c < 1 + int(4); c++) {
-      if (pick() < 0.5) lines.push(`print box.add(${numExpr(1)});`);
-      else lines.push(`print box.total();`);
+    if (pick() < 0.5) {
+      lines.push("class Bag < Box {");
+      lines.push("  double() { return super.total() * 2; }");
+      lines.push("}");
+      const inst = pick() < 0.5 ? "bag" : "boxB";
+      lines.push(`var ${inst} = Bag(${int(50)});`);
+      for (let c = 0; c < 1 + int(3); c++) {
+        if (pick() < 0.4) lines.push(`print ${inst}.double();`);
+        else if (pick() < 0.7) lines.push(`print ${inst}.add(${numExpr(1)});`);
+        else lines.push(`print ${inst}.total();`);
+      }
+    } else {
+      lines.push(`var box = Box(${int(50)});`);
+      for (let c = 0; c < 1 + int(4); c++) {
+        if (pick() < 0.5) lines.push(`print box.add(${numExpr(1)});`);
+        else lines.push(`print box.total();`);
+      }
     }
   }
 
