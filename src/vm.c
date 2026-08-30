@@ -424,8 +424,38 @@ static InterpretResult run(VM *vm, int budget) {
                 continue;
             }
             op_OP_INVOKE: {
+                /* opcode offset identifies this call site for the IC */
+                uint32_t siteOff = (uint32_t)(frame->ip -
+                    frame->closure->function->chunk->code - 1);
                 ObjString *name = READ_STRING();
                 int argCount = READ_BYTE();
+                Value receiver = peek(vm, argCount);
+                if (IS_INSTANCE(receiver)) {
+                    ObjInstance *instance = AS_INSTANCE(receiver);
+                    Chunk *ch = frame->closure->function->chunk;
+                    ICEntry *ic = &ch->ic[siteOff & (IC_SLOTS - 1)];
+                    bool shadowed = false;
+                    if (instance->fields->count > 0) {
+                        Value *field;
+                        shadowed = tableGet(instance->fields, name, &field);
+                    }
+                    /* a hit saves the method-table lookup; shadow check stays */
+                    if (!shadowed && ic->offset == siteOff &&
+                            ic->klass == instance->klass) {
+                        if (!callClosure(vm, ic->method, argCount, &frame)) {
+                            return INTERPRET_RUNTIME_ERROR;
+                        }
+                        continue;
+                    }
+                    if (!shadowed) {
+                        Value *method;
+                        if (tableGet(instance->klass->methods, name, &method)) {
+                            ic->offset = siteOff;
+                            ic->klass = instance->klass;
+                            ic->method = AS_CLOSURE(*method);
+                        }
+                    }
+                }
                 if (!invoke(vm, name, argCount, &frame)) {
                     return INTERPRET_RUNTIME_ERROR;
                 }

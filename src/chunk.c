@@ -6,6 +6,7 @@ void initChunk(Chunk *chunk) {
     chunk->capacity = 0;
     chunk->code = NULL;
     chunk->lines = NULL;
+    for (int i = 0; i < IC_SLOTS; i++) chunk->ic[i].klass = NULL; /* = empty */
     initValueArray(&chunk->constants);
 }
 

@@ -47,12 +47,25 @@ typedef enum {
     OP_STATIC_METHOD,
 } OpCode;
 
+typedef struct ObjClass ObjClass;
+typedef struct ObjClosure ObjClosure;
+
+/* Monomorphic inline cache for OP_INVOKE: one slot per (opcode offset & 7).
+   Runtime-only — images don't serialize it, GC marks through it. */
+#define IC_SLOTS 8
+typedef struct {
+    uint32_t offset;   /* opcode offset this slot caches */
+    ObjClass *klass;   /* NULL = empty */
+    ObjClosure *method;
+} ICEntry;
+
 typedef struct Chunk {
     int count;
     int capacity;
     uint8_t *code;
     int *lines;
     ValueArray constants;
+    ICEntry ic[IC_SLOTS];
 } Chunk;
 
 void initChunk(Chunk *chunk);

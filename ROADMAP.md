@@ -57,9 +57,14 @@ and appears in the README or the playground.
 
 ## Next (in order)
 
-1. **Module namespaces** — `import "lib.hk" as lib;` so modules stop
-   polluting the importer's globals: emit one synthetic class per module
-   whose statics are the module's globals.
+1. **Inline cache for OP_INVOKE** — monomorphic (klass, name) → method cache
+   per call site, marked through the function-blacken path. Wins are real only
+   if tests/bench.js's method-call bench improves; baseline lives in
+   benchmarks/baseline.json.
+
+(Module namespaces are parked: true namespacing needs per-module
+environments for functions that reference module globals — include
+semantics is the shipped model.)
 
 ## Non-goals
 

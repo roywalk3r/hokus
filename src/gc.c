@@ -63,7 +63,17 @@ static void blacken(Obj *obj) {
         case OBJ_FUNCTION: {
             ObjFunction *fn = (ObjFunction *)obj;
             if (fn->name) markObject((Obj *)fn->name);
-            if (fn->chunk) markChunkConstants(fn->chunk);
+            if (fn->chunk) {
+                markChunkConstants(fn->chunk);
+                /* inline-cache slots keep the (klass, method) pair alive */
+                for (int i = 0; i < IC_SLOTS; i++) {
+                    ICEntry *ic = &fn->chunk->ic[i];
+                    if (ic->klass != NULL) {
+                        markObject((Obj *)ic->klass);
+                        markObject((Obj *)ic->method);
+                    }
+                }
+            }
             break;
         }
         case OBJ_CLOSURE: {
