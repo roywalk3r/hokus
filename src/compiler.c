@@ -55,6 +55,7 @@ struct Compiler {
     int localCount;
     Upvalue upvalues[256];
     int scopeDepth;
+    int numConstStart; /* byte offset of latest OP_CONSTANT push, -1 if none */
 };
 
 typedef struct ClassCompiler {
@@ -170,10 +171,11 @@ static void emitReturn(Parser *p) {
 
 static int makeConstant(Parser *p, Value value) {
     Chunk *chunk = currentChunk();
-    /* reuse an existing identical string/number constant instead of duplicating */
+    /* reuse an existing identical string/number constant instead of duplicating;
+       bitwise compare: -0.0 and 0.0 are == but print differently */
     if (IS_STRING(value) || IS_NUMBER(value)) {
         for (int i = 0; i < chunk->constants.count; i++) {
-            if (valuesEqual(chunk->constants.values[i], value)) return i;
+            if (chunk->constants.values[i] == value) return i;
         }
     }
     int constant = addConstant(chunk, value);
@@ -191,6 +193,7 @@ static void emitConstRef(Parser *p, uint8_t op, int constant) {
 }
 
 static void emitConstant(Parser *p, Value value) {
+    current->numConstStart = currentChunk()->count; /* fold-mark: instruction start */
     emitConstRef(p, OP_CONSTANT, makeConstant(p, value));
 }
 
@@ -205,6 +208,7 @@ static void initCompiler(Compiler *compiler, Compiler *enclosing,
     initChunk(compiler->chunk);
     compiler->localCount = 0;
     compiler->scopeDepth = 0;
+    compiler->numConstStart = -1;
     compiler->function->chunk = compiler->chunk;
     if (name != NULL) compiler->function->name = copyString(name, nameLen);
     current = compiler;
@@ -358,10 +362,52 @@ static void defineVariable(Parser *p, int global) {
 
 /* ---- parse functions ---- */
 
+/* Constant folding. numConstStart (per-Compiler) records where the most
+   recent OP_CONSTANT push began — always a true instruction boundary, unlike
+   peeking raw bytes (operand bytes can alias the opcode). A fold fires when
+   two marked pushes sit adjacent at the end of the chunk; chunk->lines runs
+   in parallel with ->code, so lowering ->count rewinds both. Adjacency also
+   guarantees no jump target can point inside the rewound bytes. */
+static double constNumberAt(Chunk *ch, int start) {
+    Value v = ch->constants.values[(ch->code[start + 1] << 8) | ch->code[start + 2]];
+    return IS_NUMBER(v) ? AS_NUMBER(v) : 0.0 / 0.0; /* NaN = not a number */
+}
+
+static bool tryFoldBinary(TokenType op, int lhsStart, double *out) {
+    Chunk *ch = currentChunk();
+    int rhsStart = current->numConstStart;
+    if (lhsStart < 0 || rhsStart != ch->count - 3 || lhsStart != ch->count - 6)
+        return false;
+    if (ch->code[lhsStart] != OP_CONSTANT || ch->code[rhsStart] != OP_CONSTANT)
+        return false;
+    double a = constNumberAt(ch, lhsStart), b = constNumberAt(ch, rhsStart);
+    if (a != a || b != b) return false;
+    ch->count -= 6;
+    current->numConstStart = -1;
+    *out = op == TOKEN_PLUS  ? a + b
+         : op == TOKEN_MINUS ? a - b
+         : op == TOKEN_STAR  ? a * b : a / b;
+    return true;
+}
+
+static bool tryFoldNegate(double *out) {
+    Chunk *ch = currentChunk();
+    int start = current->numConstStart;
+    if (start < 0 || start != ch->count - 3 || ch->code[start] != OP_CONSTANT)
+        return false;
+    double a = constNumberAt(ch, start);
+    if (a != a) return false;
+    ch->count -= 3;
+    current->numConstStart = -1;
+    *out = -a;
+    return true;
+}
+
 static void binary(Parser *p, Compiler *c, bool canAssign) {
     (void)c; (void)canAssign;
     TokenType operatorType = p->previous.type;
     ParseRule *rule = getRule(operatorType);
+    int lhsConstMark = current->numConstStart; /* lhs parse just ended */
     parsePrecedence(p, (Precedence)(rule->precedence + 1));
     switch (operatorType) {
         case TOKEN_BANG_EQUAL:    emitBytes(p, OP_EQUAL, OP_NOT); break;
@@ -370,10 +416,20 @@ static void binary(Parser *p, Compiler *c, bool canAssign) {
         case TOKEN_GREATER_EQUAL: emitBytes(p, OP_LESS, OP_NOT); break;
         case TOKEN_LESS:          emitByte(p, OP_LESS); break;
         case TOKEN_LESS_EQUAL:    emitBytes(p, OP_GREATER, OP_NOT); break;
-        case TOKEN_PLUS:          emitByte(p, OP_ADD); break;
-        case TOKEN_MINUS:         emitByte(p, OP_SUBTRACT); break;
-        case TOKEN_STAR:          emitByte(p, OP_MULTIPLY); break;
-        case TOKEN_SLASH:         emitByte(p, OP_DIVIDE); break;
+        case TOKEN_PLUS:
+        case TOKEN_MINUS:
+        case TOKEN_STAR:
+        case TOKEN_SLASH: {
+            double r;
+            if (tryFoldBinary(operatorType, lhsConstMark, &r)) {
+                emitConstant(p, NUMBER_VAL(r));
+                break;
+            }
+            emitByte(p, operatorType == TOKEN_PLUS  ? OP_ADD
+                      : operatorType == TOKEN_MINUS ? OP_SUBTRACT
+                      : operatorType == TOKEN_STAR  ? OP_MULTIPLY : OP_DIVIDE);
+            break;
+        }
         default: return;
     }
 }
@@ -477,7 +533,12 @@ static void unary(Parser *p, Compiler *c, bool canAssign) {
     parsePrecedence(p, PREC_UNARY);
     switch (operatorType) {
         case TOKEN_BANG:  emitByte(p, OP_NOT); break;
-        case TOKEN_MINUS: emitByte(p, OP_NEGATE); break;
+        case TOKEN_MINUS: {
+            double x;
+            if (tryFoldNegate(&x)) { emitConstant(p, NUMBER_VAL(x)); break; }
+            emitByte(p, OP_NEGATE);
+            break;
+        }
         default: return;
     }
 }

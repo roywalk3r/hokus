@@ -40,8 +40,10 @@ for (const f of readdirSync(goldenDir).filter((f) => f.endsWith(".hk"))) {
 }
 
 // 2. trace mode interleaves instruction lines with program output
+// (constant folding collapses literal arithmetic, so route one operand
+// through a variable to keep a live OP_ADD in the stream)
 {
-  const code = vm.hk_run_trace(load("print 40 + 2;"));
+  const code = vm.hk_run_trace(load("var x = 40; print x + 2;"));
   const out = read();
   check("trace", code === 0 && out.includes("OP_ADD") && out.includes("42\n"),
     JSON.stringify(out.slice(0, 120)));
