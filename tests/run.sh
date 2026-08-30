@@ -66,6 +66,15 @@ if [ -x ./bin/hokus-gcstress ]; then
         ./bin/hokus-gcstress "$f" > /tmp/hokus_out 2>&1
         if [ $? -eq 70 ]; then echo "PASS gcstress:$name"; else echo "FAIL gcstress:$name"; fail=1; fi
     done
+    # GC-sensitive corpus subtrees (upvalues, tables, concat) — benchmark dirs
+    # excluded: collect-per-allocate on millions of allocs never terminates.
+    for sub in closure class string function; do
+        if node tests/lox_runner.js ./bin/hokus-gcstress "tests/external/craftinginterpreters/test/$sub" | grep -q ' 0 failed'; then
+            echo "PASS gcstress-corpus:$sub"
+        else
+            echo "FAIL gcstress-corpus:$sub"; fail=1
+        fi
+    done
 else
     echo "SKIP gcstress (run: make gcstress)"
 fi
