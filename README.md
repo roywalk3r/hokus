@@ -95,6 +95,11 @@ a full run. Natively, `--slice N` runs any program in N-instruction budgeted
 slices, so the re-entrant interpreter is gated on both hosts. `HOKUS_SLICE_SWEEP=1
 ./tests/run.sh` re-runs the entire corpus at `--slice 17`, proving the pause/resume
 interpreter byte-identical across all 266 third-party programs, not just goldens.
+The gate also runs a **disassembly roundtrip** (`tests/disasm_roundtrip.js`):
+every `--disasm` listing — goldens, examples, and the full corpus — is
+*assembled back* into bytecode and required to match the compiled chunk tree
+(`--emit-bin` oracle), so the disassembler can never drift from the bytes it
+describes.
 
 ## Design notes
 

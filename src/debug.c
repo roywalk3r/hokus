@@ -30,8 +30,18 @@ static void emitValueBrief(Value v) {
     }
     {
             if (IS_STRING(v)) {
+                ObjString *s = AS_STRING(v);
                 emit("\"");
-                emit(AS_STRING(v)->chars);
+                for (int i = 0; i < s->length; i++) {
+                    char c = s->chars[i];
+                    /* escape so listings stay one instruction per line and
+                       roundtrip-parseable (see tests/disasm_roundtrip.js) */
+                    if (c == '\n') emit("\\n");
+                    else if (c == '\t') emit("\\t");
+                    else if (c == '\\') emit("\\\\");
+                    else if (c == '"') emit("\\\"");
+                    else { char b[2] = { c, 0 }; emit(b); }
+                }
                 emit("\"");
             } else if (IS_FUNCTION(v)) {
                 ObjFunction *f = AS_FUNCTION(v);

@@ -89,6 +89,11 @@ for f in tests/golden_disasm/*.hk; do
     fi
 done
 
+echo "== disasm roundtrip (assemble listings, compare to compiled tree) =="
+node tests/disasm_roundtrip.js $BIN tests/golden/*.hk tests/golden_disasm/*.hk examples/*.hk \
+    | tail -1 | grep -q ", 0 failed," \
+    && echo "PASS disasm-roundtrip" || { echo "FAIL disasm-roundtrip"; fail=1; }
+
 echo "== slice-equivalence tests =="
 for f in tests/golden/*.hk; do
     name=$(basename "$f" .hk)
@@ -116,6 +121,10 @@ LOX=tests/external/craftinginterpreters/test
 if [ -d "$LOX" ]; then
     echo "== external: Lox suite (supported subset) =="
     node tests/lox_runner.js "$BIN" "$LOX" || fail=1
+    echo "== external: corpus-wide disasm roundtrip =="
+    node tests/disasm_roundtrip.js "$BIN" $(find "$LOX" -name '*.lox' | sort) \
+        | tail -1 | grep -q ", 0 failed," \
+        && echo "PASS corpus-roundtrip" || { echo "FAIL corpus-roundtrip"; fail=1; }
 else
     echo "== external Lox suite not present (run: ./tests/fetch_lox.sh) =="
 fi

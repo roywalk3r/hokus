@@ -40,6 +40,48 @@ static char *readFile(const char *path) {
     return buffer;
 }
 
+/* --emit-bin oracle: canonical serialization of a compiled chunk tree.
+   Numbers go out as numberToString text so the roundtrip assembler compares
+   exactly what the disassembler printed — never a re-decoded double. */
+static void emitU32(uint32_t v) {
+    unsigned char b[4] = { v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff, v >> 24 };
+    fwrite(b, 1, 4, stdout);
+}
+
+static void emitBinChunk(ObjFunction *fn) {
+    Chunk *ch = fn->chunk;
+    emitU32((uint32_t)ch->count);
+    fwrite(ch->code, 1, (size_t)ch->count, stdout);
+    emitU32((uint32_t)ch->constants.count);
+    for (int i = 0; i < ch->constants.count; i++) {
+        Value v = ch->constants.values[i];
+        if (IS_NUMBER(v)) {
+            char buf[32];
+            numberToString(AS_NUMBER(v), buf, sizeof(buf));
+            fputc('n', stdout);
+            emitU32((uint32_t)strlen(buf));
+            fputs(buf, stdout);
+        } else if (IS_STRING(v)) {
+            ObjString *s = AS_STRING(v);
+            fputc('s', stdout);
+            emitU32((uint32_t)s->length);
+            fwrite(s->chars, 1, (size_t)s->length, stdout);
+        } else {
+            ObjFunction *f = AS_FUNCTION(v);
+            fputc('f', stdout);
+            emitU32(f->name ? (uint32_t)f->name->length : 0);
+            if (f->name) fwrite(f->name->chars, 1, (size_t)f->name->length, stdout);
+            emitBinChunk(f);
+        }
+    }
+}
+
+static void emitBinary(const char *source) {
+    ObjFunction *fn = compile(source, (int)strlen(source));
+    if (fn == NULL) exit(65);
+    emitBinChunk(fn);
+}
+
 static void runFile(VM *vm, const char *path, bool disasm, bool scan, int slice) {
     char *source = readFile(path);
     if (scan) {
@@ -126,6 +168,7 @@ int main(int argc, char **argv) {
     bool disasm = false;
     bool trace = false;
     bool scan = false;
+    bool emitBin = false;
     int slice = 0;
     const char *path = NULL;
     for (int i = 1; i < argc; i++) {
@@ -135,6 +178,8 @@ int main(int argc, char **argv) {
             trace = true;
         } else if (strcmp(argv[i], "--scan") == 0 || strcmp(argv[i], "-s") == 0) {
             scan = true;
+        } else if (strcmp(argv[i], "--emit-bin") == 0) {
+            emitBin = true;
         } else if (strcmp(argv[i], "--slice") == 0 && i + 1 < argc) {
             slice = atoi(argv[++i]);
             if (slice < 1) slice = 1;
@@ -160,6 +205,8 @@ int main(int argc, char **argv) {
     vm.trace = trace;
     if (path == NULL) {
         repl(&vm);
+    } else if (emitBin) {
+        emitBinary(readFile(path));
     } else {
         runFile(&vm, path, disasm, scan, slice);
     }

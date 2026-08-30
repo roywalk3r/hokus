@@ -13,7 +13,8 @@ and appears in the README or the playground.
   dispatch, `OP_INVOKE`/`OP_SUPER_INVOKE` fast paths, string interning,
   mark-sweep GC with weak-key intern table, free-list allocator on the
   wasm bump heap.
-- **CLI** — REPL, `--disasm`, `--trace`, `--scan` (jlox token dump),
+- **CLI** — REPL (brace-depth-aware multi-line input for pasted
+  fun/class blocks), `--disasm`, `--trace`, `--scan` (jlox token dump),
   `--slice N` budgeted execution, `HOKUS_STATS=1` allocation/GC counters.
 - **WASM host** — freestanding C compiled with `clang --target=wasm32`,
   zero imports, 32 MB static heap; same core `.c` files as native.
@@ -27,14 +28,18 @@ and appears in the README or the playground.
   golden corpus and the closure/class/string/function subtrees),
   differential shapes incl. shared-upvalue closures and closures escaping
   class methods.
+- **Disasm roundtrip gate** — `tests/disasm_roundtrip.js` assembles every
+  `--disasm` listing back into bytecode and compares against the compiled
+  chunk tree (`--emit-bin` oracle): code bytes exact, constants per
+  referenced slot. Runs over goldens, examples, and the full Lox corpus.
 
 ## Next (in order)
 
-1. **REPL conveniences** — multi-line input accumulation (brace-depth
-   aware) so function/class definitions paste cleanly.
-2. **Disasm-to-golden selftest** — recompile every golden's disassembly
-   listing and require identical bytecode (assembler roundtrip, the
-   disassembler's inverse problem).
+1. **Bytecode images** — `--emit-bin` already serializes the compiled chunk
+   tree; add the inverse (load and execute) so a `.hki` file runs with no
+   source present. Gated by image → run == source → run on the corpus.
+2. **Benchmark trendlines** — bench.js records results to a committed log
+   so perf regressions are diffs, not memories.
 
 ## Non-goals
 
