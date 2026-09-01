@@ -194,6 +194,15 @@ branches made a six-field-churn microbench ~3% *slower*. The semantic
 regression golden (`tests/golden/fields.hk`) written for the experiment is
 kept as coverage.)
 
+(Measured and rejected: RETURN consuming the caller's result-discard op —
+the return epilogue peeked at the caller's next byte and wrote SET_LOCAL_POP
+results straight into the caller slot (POP got skipped outright), saving a
+dispatch plus the push/pop round-trip. Interleaved A/B: leaf −2%/−7%
+(native/wasm) but fib +1%/+2% native — every miss of the peek taxes the
+return-heavy recursion path. Mixed A/B = not a win; reverted. Lesson: any
+branch added to the shared return epilogue is paid by all 1.66M fib
+returns, matching or exceeding what the hit path saves.)
+
 (Measured and rejected: OP_CALL_GLOBAL — fusing `name(args)` with a global
 callee into one 4-byte op (compiler slides the arg bytecode left over the
 3-byte OP_GET_GLOBAL, VM shifts args up one slot and plants the callee
