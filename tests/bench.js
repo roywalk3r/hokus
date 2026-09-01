@@ -20,6 +20,9 @@ const PROGRAMS = {
     "class Counter {\n    init() { this.n = 0; }\n    bump() { this.n = this.n + 1; return this.n; }\n}\n"
     + "var c = Counter();\nvar last = 0;\n"
     + "for (var i = 0; i < 200000; i = i + 1) last = c.bump();\nprint last;\n",
+  "200k static calls (class receiver)":
+    "class Math2 {\n    static sqr(x) { return x * x; }\n}\nvar last = 0;\n"
+    + "for (var i = 0; i < 200000; i = i + 1) last = Math2.sqr(7);\nprint last;\n",
   "100k field gets (interned keys)":
     "class P { init() { this.x = 1; } }\nvar p = P();\nvar s = 0;\n"
     + "for (var i = 0; i < 100000; i = i + 1) s = s + p.x;\nprint s;\n",

@@ -430,6 +430,29 @@ static InterpretResult run(VM *vm, int budget) {
                 ObjString *name = READ_STRING();
                 int argCount = READ_BYTE();
                 Value receiver = peek(vm, argCount);
+                if (IS_CLASS(receiver)) {
+                    /* statics: key the IC on the class object itself */
+                    ObjClass *klass = AS_CLASS(receiver);
+                    Chunk *ch = frame->closure->function->chunk;
+                    ICEntry *ic = &ch->ic[siteOff & (IC_SLOTS - 1)];
+                    if (ic->offset == siteOff && ic->klass == klass) {
+                        vm->stackTop[-argCount - 1] = OBJ_VAL(ic->method);
+                        if (!callClosure(vm, ic->method, argCount, &frame)) {
+                            return INTERPRET_RUNTIME_ERROR;
+                        }
+                        continue;
+                    }
+                    Value *method;
+                    if (tableGet(klass->statics, name, &method)) {
+                        ic->offset = siteOff;
+                        ic->klass = klass;
+                        ic->method = AS_CLOSURE(*method);
+                    }
+                    if (!invoke(vm, name, argCount, &frame)) {
+                        return INTERPRET_RUNTIME_ERROR;
+                    }
+                    continue;
+                }
                 if (IS_INSTANCE(receiver)) {
                     ObjInstance *instance = AS_INSTANCE(receiver);
                     Chunk *ch = frame->closure->function->chunk;
