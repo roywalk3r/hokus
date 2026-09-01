@@ -160,6 +160,19 @@ branches made a six-field-churn microbench ~3% *slower*. The semantic
 regression golden (`tests/golden/fields.hk`) written for the experiment is
 kept as coverage.)
 
+(Measured and rejected: OP_CALL_GLOBAL — fusing `name(args)` with a global
+callee into one 4-byte op (compiler slides the arg bytecode left over the
+3-byte OP_GET_GLOBAL, VM shifts args up one slot and plants the callee
+underneath, sharing callValue). Unlike CALL_LOCAL8 this replaces a hash
+tableGet, but the saved dispatch + push still lose to the shift: in-language
+clock() interleaved A/B (best-of-9): leaf 39.5 → 41.8 ms native (+6%),
+wasm leaf flat-to-worse across repeated harness runs, fib noise both hosts.
+The callee-store-under-args pattern is now confirmed dead for both callee
+kinds — anything wanting it must eliminate the shift, not redecorate it.
+Harness note: whole-process /usr/bin/time at 10 ms resolution read this as
+"flat 30/30" when in-language clock() showed +6% — A/B native runs must use
+the clock() wrap, not wall-clock process timing.)
+
 (Module namespaces are parked: true namespacing needs per-module
 environments for functions that reference module globals — include
 semantics is the shipped model.)
