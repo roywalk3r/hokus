@@ -77,9 +77,10 @@ and appears in the README or the playground.
 
 1. **Call-path work for fib-class workloads** — `fib(28)` (~1.03M calls,
    ~35 ms native) is dominated by frame setup and OP_RETURN/OP_CALL, not
-   dispatch. Candidates: register-window style locals or folding
-   CALL+RETURN sequences. Any candidate must move the fib bench; baseline
-   lives in benchmarks/baseline.json.
+   dispatch; the dedicated `1M leaf calls` bench (~66 ms native / ~94 ms wasm)
+   isolates that path. Candidates: register-window style locals or folding
+   CALL+RETURN sequences. Any candidate must move these benches under
+   interleaved A/B; baseline lives in benchmarks/baseline.json.
 
 (Measured and rejected: a monomorphic callee cache for OP_CALL sharing the
 chunk IC array — both natives' `callValue` type switch and wasm's br_table
