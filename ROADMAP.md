@@ -120,6 +120,13 @@ and appears in the README or the playground.
   their end-jumps at the operand tail, so any rewind fusion must refuse
   to cross `andOrTarget` or it strands those targets mid-instruction.
 
+- **`OP_ADD_LOCAL_CONST8_SET_LOOP`** — a for-increment (or trailing
+  while-body statement) in the fused `i = i + k` form joins its OP_LOOP
+  back-edge: one op, increment-then-jump in the original order. New
+  compiler mark (incSetStart) tracks the increment's instruction start;
+  mark + bytes + adjacency verified, and/or guard as with all rewinds.
+  Leaf: ~6% native, ~3% WASM; fib flat (interleaved A/B, best-of).
+
 ## Next (in order)
 
 1. **Call-path work, remaining** — after the slots-window, sub-fusion, and

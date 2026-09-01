@@ -59,6 +59,7 @@ struct Compiler {
     int localGetStart; /* byte offset of latest OP_GET_LOCAL push, -1 if none */
     int setStmtStart; /* byte offset of latest SET_LOCAL/GLOBAL, -1 if none */
     int cmpJumpStart; /* byte offset of latest LESS/GREATER op, -1 if none */
+    int incSetStart; /* byte offset of latest OP_ADD_LOCAL_CONST8_SET, -1 */
     /* end-of-operand jump target from and/or: fusions that rewind the chunk
        tail must never cross it (patched jumps still point into the old
        layout — crossing means mid-instruction targets) */
@@ -178,6 +179,29 @@ static void emitLoop(Parser *p, int loopStart) {
     emitByte(p, offset & 0xff);
 }
 
+/* Loop back-edge. A for-increment (or trailing while-body statement) that's
+   already the fused `i = i + k` op joins its OP_LOOP into one instruction.
+   Mark + bytes + adjacency verified; and/or guard as with all rewinds. */
+static void emitLoopBack(Parser *p, int loopStart) {
+    Chunk *ch = currentChunk();
+    int n = ch->count;
+    int mark = current->incSetStart;
+    if (mark == n - 3 && current->andOrTarget <= n - 3 &&
+        ch->code[mark] == OP_ADD_LOCAL_CONST8_SET) {
+        uint8_t slot = ch->code[mark + 1], cidx = ch->code[mark + 2];
+        ch->count = mark; /* rewind the 3-byte increment; lines move with it */
+        emitByte(p, OP_ADD_LOCAL_CONST8_SET_LOOP);
+        emitByte(p, slot);
+        emitByte(p, cidx);
+        int offset = currentChunk()->count - loopStart + 2;
+        if (offset > UINT16_MAX) error(p, "Loop body too large.");
+        emitByte(p, (offset >> 8) & 0xff);
+        emitByte(p, offset & 0xff);
+        return;
+    }
+    emitLoop(p, loopStart);
+}
+
 static void emitReturn(Parser *p) {
     emitByte(p, OP_NIL);
     emitByte(p, OP_RETURN);
@@ -228,6 +252,7 @@ static void initCompiler(Compiler *compiler, Compiler *enclosing,
     compiler->localGetStart = -1;
     compiler->setStmtStart = -1;
     compiler->cmpJumpStart = -1;
+    compiler->incSetStart = -1;
     compiler->andOrTarget = -1;
     compiler->function->chunk = compiler->chunk;
     if (name != NULL) compiler->function->name = copyString(name, nameLen);
@@ -995,6 +1020,7 @@ static void emitExprPop(Parser *p) {
             ch->code[n - 4] == ch->code[n - 1]) { /* same slot */
             uint8_t slot = ch->code[n - 4], cidx = ch->code[n - 3];
             ch->count = n - 5;
+            current->incSetStart = ch->count; /* fuse-mark */
             emitByte(p, OP_ADD_LOCAL_CONST8_SET);
             emitByte(p, slot);
             emitByte(p, cidx);
@@ -1011,6 +1037,7 @@ static void emitExprPop(Parser *p) {
             IS_NUMBER(ch->constants.values[ch->code[cm + 1]])) {
             uint8_t slot = ch->code[lm + 1], cidx = ch->code[cm + 1];
             ch->count = n - 7;
+            current->incSetStart = ch->count; /* fuse-mark */
             emitByte(p, OP_ADD_LOCAL_CONST8_SET);
             emitByte(p, slot);
             emitByte(p, cidx);
@@ -1097,7 +1124,7 @@ static void whileStatement(Parser *p) {
     consume(p, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
     int exitJump = emitCondJump(p);
     statement(p);
-    emitLoop(p, loopStart);
+    emitLoopBack(p, loopStart);
     patchJump(p, exitJump);
 }
 
@@ -1124,12 +1151,12 @@ static void forStatement(Parser *p) {
         expression(p);
         emitExprPop(p);
         consume(p, TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
-        emitLoop(p, loopStart);
+        emitLoopBack(p, loopStart);
         loopStart = incrementStart;
         patchJump(p, bodyJump);
     }
     statement(p);
-    emitLoop(p, loopStart);
+    emitLoopBack(p, loopStart);
     if (exitJump != -1) {
         patchJump(p, exitJump);
     }

@@ -23,7 +23,7 @@ const OPS = [
   "OP_LESS_JUMP", "OP_GREATER_JUMP",
   "OP_SET_LOCAL_POP", "OP_SET_GLOBAL_POP", "OP_ADD_LOCAL_CONST8_SET",
   "OP_RETURN_LOCAL", "OP_LESS_LOCAL_CONST8_JUMP",
-  "OP_ADD_LOCAL_CONST8",
+  "OP_ADD_LOCAL_CONST8", "OP_ADD_LOCAL_CONST8_SET_LOOP",
 ];
 const OPC = Object.fromEntries(OPS.map((n, i) => [n, i]));
 const CONST_OPS = new Set(["OP_CONSTANT", "OP_GET_GLOBAL", "OP_DEFINE_GLOBAL",
@@ -38,6 +38,7 @@ const BYTE_OPS = new Set(["OP_GET_LOCAL", "OP_SET_LOCAL", "OP_GET_UPVALUE",
 const JUMP_FWD = new Set(["OP_JUMP", "OP_JUMP_IF_FALSE", "OP_POP_JUMP_IF_FALSE",
   "OP_LESS_JUMP", "OP_GREATER_JUMP"]);
 const LC8J_OPS = new Set(["OP_LESS_LOCAL_CONST8_JUMP"]); /* slot + const + fwd jump */
+const LC8L_OPS = new Set(["OP_ADD_LOCAL_CONST8_SET_LOOP"]); /* slot + const + back jump */
 const INVOKE_OPS = new Set(["OP_INVOKE", "OP_SUPER_INVOKE"]);
 
 // ---- canonical dump reader (from --emit-bin) ----
@@ -132,6 +133,13 @@ function assemble(listing) {
         needConst(idx);
         consts[idx] = parseValue(c[3]);
         const jump = Number(c[5]) - (offset + 5);
+        code.push(Number(c[1]), idx & 0xff, jump >> 8, jump & 0xff);
+      } else if (LC8L_OPS.has(op)) {
+        const c = operand.match(/^(\d+) (\d+) (.*) \| (\d+) -> (\d+)$/);
+        const idx = Number(c[2]);
+        needConst(idx);
+        consts[idx] = parseValue(c[3]);
+        const jump = (offset + 5) - Number(c[5]);
         code.push(Number(c[1]), idx & 0xff, jump >> 8, jump & 0xff);
       } else if (LOCAL_CONST8_OPS.has(op)) {
         const c = operand.match(/^(\d+) (\d+) (.*)$/);
