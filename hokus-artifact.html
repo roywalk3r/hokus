@@ -67,6 +67,7 @@
           <option value="fizzbuzz">fizzbuzz</option>
           <option value="strings">strings</option>
           <option value="showcase">showcase — closures + classes</option>
+          <option value="dungeon">dungeon — statics + closures + %</option>
         </select>
         <label style="font-size:12px"><input type="checkbox" id="trace"> trace</label>
         <button id="step" disabled>Step ▸</button>
@@ -99,14 +100,10 @@ fun fib(n) {
 }
 for (var i = 0; i < 15; i = i + 1) print fib(i);
 `,
-  fizzbuzz: `fun mod(a, b) {
-    while (a >= b) a = a - b;
-    return a;
-}
-for (var i = 1; i <= 20; i = i + 1) {
-    if (mod(i, 15) == 0) print "FizzBuzz";
-    else if (mod(i, 3) == 0) print "Fizz";
-    else if (mod(i, 5) == 0) print "Buzz";
+  fizzbuzz: `for (var i = 1; i <= 20; i = i + 1) {
+    if (i % 15 == 0) print "FizzBuzz";
+    else if (i % 3 == 0) print "Fizz";
+    else if (i % 5 == 0) print "Buzz";
     else print i;
 }
 `,
@@ -162,6 +159,74 @@ print alice.balance;
 print bob.owner;
 print bob.balance;
 print audit.second();
+`,
+  dungeon: `// dungeon.hk — statics, closures, % (deterministic)
+
+fun die(acc) {
+    return 1 + acc % 6;
+}
+
+fun digit(d) {
+    if (d == 0) return "0"; if (d == 1) return "1";
+    if (d == 2) return "2"; if (d == 3) return "3";
+    if (d == 4) return "4"; if (d == 5) return "5";
+    if (d == 6) return "6"; if (d == 7) return "7";
+    if (d == 8) return "8"; return "9";
+}
+
+// int -> string
+fun text(n) {
+    if (n < 0) return "-" + text(0 - n);
+    if (n >= 100) return "big";
+    var top = n % 10;
+    var tens = (n - top) / 10;
+    if (tens == 0) return digit(top);
+    return digit(tens) + digit(top);
+}
+
+class Dice {
+    static seed(start) {
+        var acc = start;
+        // each call advances the captured counter — our "random" die
+        fun roll() {
+            acc = acc + 29;
+            while (acc >= 97) acc = acc - 97;
+            return die(acc);
+        }
+        return roll;
+    }
+}
+
+class Hero {
+    static born(name, hp) {
+        var h = Hero(name);
+        h.hp = hp;
+        return h;
+    }
+    init(name) { this.name = name; this.hp = 20; }
+    describe() { return this.name + " (" + text(this.hp) + " hp)"; }
+}
+
+var d6 = Dice.seed(7);
+var hero = Hero.born("Ada", 20);
+
+var room = 1;
+while (room <= 3) {
+    var hit = d6() * 2;
+    print "room " + text(room) + ": the goblin rolls " + text(hit);
+    if (hit > 5) {
+        hero.hp = hero.hp - hit;
+        print hero.describe() + " takes it on the chin";
+    } else {
+        print hero.describe() + " parries";
+    }
+    room = room + 1;
+}
+if (hero.hp <= 0) {
+    print hero.describe() + " falls in the dark";
+} else {
+    print hero.describe() + " limps out";
+}
 `,
 };
 

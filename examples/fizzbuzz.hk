@@ -1,14 +1,9 @@
-fun mod(a, b) {
-    while (a >= b) a = a - b;
-    return a;
-}
-
 for (var i = 1; i <= 20; i = i + 1) {
-    if (mod(i, 15) == 0) {
+    if (i % 15 == 0) {
         print "FizzBuzz";
-    } else if (mod(i, 3) == 0) {
+    } else if (i % 3 == 0) {
         print "Fizz";
-    } else if (mod(i, 5) == 0) {
+    } else if (i % 5 == 0) {
         print "Buzz";
     } else {
         print i;

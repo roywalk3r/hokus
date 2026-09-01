@@ -88,8 +88,14 @@ if (baselinePath) {
     for (const host of ["wasm_ms", "native_ms"]) {
       const b = base[label]?.[host];
       if (b == null) continue;
-      if (m[host] > b * FACTOR) {
-        console.log(`SLOW ${label} ${host}: ${m[host]} ms vs baseline ${b} ms (> ${FACTOR}x)`);
+      // gate runs share a loaded machine (the fuzz sweep just finished); a
+      // tripped row gets one re-measure — a real regression survives it,
+      // a load spike doesn't
+      const got = m[host] > b * FACTOR
+        ? (host === "wasm_ms" ? wasmMs : nativeMs)(PROGRAMS[label])
+        : m[host];
+      if (got > b * FACTOR) {
+        console.log(`SLOW ${label} ${host}: ${got.toFixed(2)} ms vs baseline ${b} ms (> ${FACTOR}x)`);
         slow++;
       }
     }
