@@ -26,6 +26,12 @@ const PROGRAMS = {
   "100k field gets (interned keys)":
     "class P { init() { this.x = 1; } }\nvar p = P();\nvar s = 0;\n"
     + "for (var i = 0; i < 100000; i = i + 1) s = s + p.x;\nprint s;\n",
+  "300k field get/set churn":
+    "class P { init() { this.x = 1; this.y = 2; this.z = 3; } }\nvar p = P();\nvar a = 0;\n"
+    + "for (var i = 0; i < 300000; i = i + 1) {\n"
+    + "    a = p.x; a = p.y; a = p.z;\n"
+    + "    p.x = a; p.y = a; p.z = a;\n"
+    + "}\nprint a;\n",
   "2k string concat (+ GC)":
     "var s = \"\";\nfor (var i = 0; i < 2000; i = i + 1) s = s + \"ab\";\nprint s;\n",
 };

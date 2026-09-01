@@ -68,11 +68,18 @@ and appears in the README or the playground.
 
 ## Next (in order)
 
-1. **Field-offset cache for OP_GET_PROPERTY/OP_SET_PROPERTY** — the field-get
-   bench is the remaining table-lookup hot spot; cache (klass, name) → stable
-   field slot, invalidated on class-redefinition or table rehash. Wins are
-   real only if tests/bench.js's field bench improves; baseline lives in
-   benchmarks/baseline.json.
+1. **Call-path work for fib-class workloads** — `fib(28)` (~1.03M calls,
+   ~35 ms native) is dominated by frame setup and OP_RETURN/OP_CALL, not
+   dispatch. Candidates: register-window style locals or folding
+   CALL+RETURN sequences. Any candidate must move the fib bench; baseline
+   lives in benchmarks/baseline.json.
+
+(Measured and rejected: a field-offset cache for OP_GET_PROPERTY /
+OP_SET_PROPERTY — interned-name tableGet on a capacity-8 table is already a
+hash-mask plus one probe; the cache's extra site-offset math and validation
+branches made a six-field-churn microbench ~3% *slower*. The semantic
+regression golden (`tests/golden/fields.hk`) written for the experiment is
+kept as coverage.)
 
 (Module namespaces are parked: true namespacing needs per-module
 environments for functions that reference module globals — include

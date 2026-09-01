@@ -1,0 +1,15 @@
+class P { init() { this.x = 1; } }
+var p = P();
+print p.x;        // 1 — fill path
+p.x = 42;
+print p.x;        // 42 — set via cache, get via cache
+var q = P();
+print q.x;        // 1 — different instance, same call sites
+p.y = 7;          // grow the table
+print p.x;        // 42 — possible rehash: cache must miss and refill
+print p.y;        // 7
+class A { init() { this.v = "a"; } }
+class B { init() { this.v = "b"; } }
+fun read(o) { return o.v; }
+print read(A());
+print read(B());  // polymorphic site: both must be right
