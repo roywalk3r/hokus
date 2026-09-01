@@ -143,7 +143,12 @@ recursion compiles to GET_LOCAL 0 + CALL, so fib hits it 2M times per run,
 but the arg-shift loop and the duplicated callValue site cost more than the
 saved dispatch: interleaved A/B ~7% slower native, ~1% slower wasm. A
 GET_LOCAL followed by a push is already just a dispatch plus an array
-load.)
+load. Retried once with the compiler lifting the GET_LOCAL out of the
+byte stream and a single shared callValue (no duplicated call body):
+native fib still ~4% slower across repeat interleaved A/B, wasm fib
+gains inconsistent between sessions (one +11%, one +4%) and leaf wasm
+moved against non-executing layout. Mixed/noisy = not a win; the callee
+store under the args fundamentally can't beat one array load. Dead end.)
 
 (Measured and rejected: a field-offset cache for OP_GET_PROPERTY /
 OP_SET_PROPERTY — interned-name tableGet on a capacity-8 table is already a
