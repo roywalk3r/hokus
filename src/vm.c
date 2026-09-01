@@ -318,6 +318,7 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_SUB_LOCAL_CONST8, &&op_OP_LESS_JUMP, &&op_OP_GREATER_JUMP,
         &&op_OP_SET_LOCAL_POP, &&op_OP_SET_GLOBAL_POP,
         &&op_OP_ADD_LOCAL_CONST8_SET, &&op_OP_RETURN_LOCAL,
+        &&op_OP_LESS_LOCAL_CONST8_JUMP,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
@@ -501,6 +502,22 @@ static InterpretResult run(VM *vm, int budget) {
                 }
                 double b = AS_NUMBER(pop(vm)), a = AS_NUMBER(pop(vm));
                 if (!(a > b)) frame->ip += offset;
+                continue;
+            }
+            /* fused if (local < const): GET_LOCAL; CONSTANT8; LESS_JUMP.
+               Nothing is pushed — the slot gets BINARY_OP's check, the
+               const is compile-time numeric */
+            op_OP_LESS_LOCAL_CONST8_JUMP: {
+                uint8_t slot = READ_BYTE();
+                Value b = frame->closure->function->chunk->constants.values[
+                    READ_BYTE()];
+                uint16_t offset = READ_SHORT();
+                Value a = FRAME_SLOTS[slot];
+                if (!IS_NUMBER(a)) {
+                    runtimeError(vm, "Operands must be numbers.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                if (!(AS_NUMBER(a) < AS_NUMBER(b))) frame->ip += offset;
                 continue;
             }
             op_OP_LOOP: {

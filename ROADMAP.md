@@ -102,6 +102,14 @@ and appears in the README or the playground.
   ~3% slower despite never executing the op — jump-table layout effect,
   noted in the commit.)
 
+- **`OP_LESS_LOCAL_CONST8_JUMP`** — `local < const` branch condition
+  (fib's `n < 2`, every `for (i < n)`/while bound) as one 5-byte op:
+  slot + const8 + jump16, no stack round-trip. fib(28): ~16% native,
+  ~14% WASM; leaf: ~7% both (interleaved A/B, best-of). Shipped behind
+  the and/or guard below — see the fix commit 3b49011: and/or patch
+  their end-jumps at the operand tail, so any rewind fusion must refuse
+  to cross `andOrTarget` or it strands those targets mid-instruction.
+
 ## Next (in order)
 
 1. **Call-path work, remaining** — after the slots-window, sub-fusion, and

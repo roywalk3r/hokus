@@ -1029,6 +1029,24 @@ static int emitCondJump(Parser *p) {
     if (current->cmpJumpStart == last && last >= 0 &&
         current->andOrTarget <= last &&
         (ch->code[last] == OP_LESS || ch->code[last] == OP_GREATER)) {
+        /* deeper: `if (local < const)` / loop conditions are GET_LOCAL;
+           CONSTANT8; LESS — fuse all three with the branch. Every mark
+           re-verified by bytes and offsets. */
+        int lm = current->localGetStart, cm = current->numConstStart;
+        if (current->andOrTarget <= last - 4 &&
+            ch->code[last] == OP_LESS && lm == last - 4 && cm == last - 2 &&
+            ch->code[lm] == OP_GET_LOCAL && ch->code[cm] == OP_CONSTANT8 &&
+            IS_NUMBER(ch->constants.values[ch->code[cm + 1]])) {
+            uint8_t slot = ch->code[lm + 1], cidx = ch->code[cm + 1];
+            ch->count -= 5; /* rewind the whole 5-byte pattern; jump operand appended after */
+            int off = ch->count + 3; /* patchJump points at the operand */
+            emitByte(p, OP_LESS_LOCAL_CONST8_JUMP);
+            emitByte(p, slot);
+            emitByte(p, cidx);
+            emitByte(p, 0xff);
+            emitByte(p, 0xff);
+            return off;
+        }
         uint8_t fused = ch->code[last] == OP_LESS ? OP_LESS_JUMP
                                                   : OP_GREATER_JUMP;
         ch->count = last; /* rewind 1-byte comparison; code+lines go together */
