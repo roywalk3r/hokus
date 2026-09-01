@@ -59,6 +59,10 @@ struct Compiler {
     int localGetStart; /* byte offset of latest OP_GET_LOCAL push, -1 if none */
     int setStmtStart; /* byte offset of latest SET_LOCAL/GLOBAL, -1 if none */
     int cmpJumpStart; /* byte offset of latest LESS/GREATER op, -1 if none */
+    /* end-of-operand jump target from and/or: fusions that rewind the chunk
+       tail must never cross it (patched jumps still point into the old
+       layout — crossing means mid-instruction targets) */
+    int andOrTarget;
 };
 
 typedef struct ClassCompiler {
@@ -224,6 +228,7 @@ static void initCompiler(Compiler *compiler, Compiler *enclosing,
     compiler->localGetStart = -1;
     compiler->setStmtStart = -1;
     compiler->cmpJumpStart = -1;
+    compiler->andOrTarget = -1;
     compiler->function->chunk = compiler->chunk;
     if (name != NULL) compiler->function->name = copyString(name, nameLen);
     current = compiler;
@@ -730,6 +735,7 @@ static void andOp(Parser *p, Compiler *c, bool canAssign) {
     emitByte(p, OP_POP);
     parsePrecedence(p, PREC_AND);
     patchJump(p, endJump);
+    current->andOrTarget = currentChunk()->count;
 }
 
 static void orOp(Parser *p, Compiler *c, bool canAssign) {
@@ -740,6 +746,7 @@ static void orOp(Parser *p, Compiler *c, bool canAssign) {
     emitByte(p, OP_POP);
     parsePrecedence(p, PREC_OR);
     patchJump(p, endJump);
+    current->andOrTarget = currentChunk()->count;
 }
 
 /* ---- rules table ---- */
@@ -973,7 +980,8 @@ static void emitExprPop(Parser *p) {
         /* deeper fusion: `slot = slot + const` (`i = i + 1` increments) is
            GET_LOCAL; CONSTANT8; ADD; SET_LOCAL — all four marks verified */
         int lm = current->localGetStart, cm = current->numConstStart;
-        if (lm == n - 7 && cm == n - 5 &&
+        if (current->andOrTarget <= n - 7 &&
+            lm == n - 7 && cm == n - 5 &&
             ch->code[lm] == OP_GET_LOCAL && ch->code[cm] == OP_CONSTANT8 &&
             ch->code[n - 3] == OP_ADD &&
             ch->code[lm + 1] == ch->code[n - 1] && /* same slot */
@@ -1016,7 +1024,10 @@ static int emitCondJump(Parser *p) {
     int last = ch->count - 1;
     /* cmpJumpStart is an instruction-start mark — a bare code[count-1]
        check would also match operand bytes that alias LESS/GREATER */
+    /* A and/or chain in the condition leaves jump targets at the chunk tail;
+       rewinding past them would strand those targets mid-instruction. */
     if (current->cmpJumpStart == last && last >= 0 &&
+        current->andOrTarget <= last &&
         (ch->code[last] == OP_LESS || ch->code[last] == OP_GREATER)) {
         uint8_t fused = ch->code[last] == OP_LESS ? OP_LESS_JUMP
                                                   : OP_GREATER_JUMP;
