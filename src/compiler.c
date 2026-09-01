@@ -1108,6 +1108,15 @@ static void returnStatement(Parser *p) {
         }
         expression(p);
         consume(p, TOKEN_SEMICOLON, "Expect ';' after return value.");
+        /* `return local;` is GET_LOCAL; RETURN at the tail — one op */
+        Chunk *ch = currentChunk();
+        int lm = current->localGetStart;
+        if (lm >= 0 && lm == ch->count - 2 && ch->code[lm] == OP_GET_LOCAL) {
+            uint8_t slot = ch->code[lm + 1];
+            ch->count -= 2;
+            emitBytes(p, OP_RETURN_LOCAL, slot);
+            return;
+        }
         emitByte(p, OP_RETURN);
     }
 }

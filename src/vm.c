@@ -317,7 +317,7 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_MODULO, &&op_OP_POP_JUMP_IF_FALSE, &&op_OP_CONSTANT8,
         &&op_OP_SUB_LOCAL_CONST8, &&op_OP_LESS_JUMP, &&op_OP_GREATER_JUMP,
         &&op_OP_SET_LOCAL_POP, &&op_OP_SET_GLOBAL_POP,
-        &&op_OP_ADD_LOCAL_CONST8_SET,
+        &&op_OP_ADD_LOCAL_CONST8_SET, &&op_OP_RETURN_LOCAL,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
@@ -717,6 +717,18 @@ static InterpretResult run(VM *vm, int budget) {
                     pop(vm); /* script */
                     return INTERPRET_OK;
                 }
+                vm->stackTop = frame->slots;
+                push(vm, result);
+                frame = &vm->frames[vm->frameCount - 1];
+                REFRESH_SLOTS();
+                continue;
+            }
+            /* fused GET_LOCAL; RETURN — value read before upvalue closing,
+               same order as the unfused pair */
+            op_OP_RETURN_LOCAL: {
+                Value result = FRAME_SLOTS[READ_BYTE()];
+                if (vm->openUpvalues != NULL) closeUpvalues(vm, frame->slots);
+                vm->frameCount--;
                 vm->stackTop = frame->slots;
                 push(vm, result);
                 frame = &vm->frames[vm->frameCount - 1];
