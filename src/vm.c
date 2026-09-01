@@ -317,6 +317,7 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_MODULO, &&op_OP_POP_JUMP_IF_FALSE, &&op_OP_CONSTANT8,
         &&op_OP_SUB_LOCAL_CONST8, &&op_OP_LESS_JUMP, &&op_OP_GREATER_JUMP,
         &&op_OP_SET_LOCAL_POP, &&op_OP_SET_GLOBAL_POP,
+        &&op_OP_ADD_LOCAL_CONST8_SET,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
@@ -365,6 +366,22 @@ static InterpretResult run(VM *vm, int budget) {
             op_OP_SET_LOCAL_POP:
                 FRAME_SLOTS[READ_BYTE()] = pop(vm);
                 continue;
+            /* slot += <numeric constant> — fused GET_LOCAL; CONSTANT8; ADD;
+               SET_LOCAL_POP. Const is compile-time numeric; the slot value
+               gets the BINARY_OP check (a string slot would have taken the
+               concat path unfused, so the error text matches OP_ADD's) */
+            op_OP_ADD_LOCAL_CONST8_SET: {
+                uint8_t slot = READ_BYTE();
+                Value b = frame->closure->function->chunk->constants.values[
+                    READ_BYTE()];
+                Value a = FRAME_SLOTS[slot];
+                if (!IS_NUMBER(a)) {
+                    runtimeError(vm, "Operands must be numbers.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                FRAME_SLOTS[slot] = NUMBER_VAL(AS_NUMBER(a) + AS_NUMBER(b));
+                continue;
+            }
             op_OP_SET_GLOBAL_POP: {
                 ObjString *name = READ_STRING();
                 Value v = pop(vm);

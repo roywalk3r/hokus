@@ -970,6 +970,21 @@ static void emitExprPop(Parser *p) {
     int n = ch->count;
     int mark = current->setStmtStart; /* instruction-start mark, not a guess */
     if (mark >= 0 && mark == n - 2 && ch->code[mark] == OP_SET_LOCAL) {
+        /* deeper fusion: `slot = slot + const` (`i = i + 1` increments) is
+           GET_LOCAL; CONSTANT8; ADD; SET_LOCAL — all four marks verified */
+        int lm = current->localGetStart, cm = current->numConstStart;
+        if (lm == n - 7 && cm == n - 5 &&
+            ch->code[lm] == OP_GET_LOCAL && ch->code[cm] == OP_CONSTANT8 &&
+            ch->code[n - 3] == OP_ADD &&
+            ch->code[lm + 1] == ch->code[n - 1] && /* same slot */
+            IS_NUMBER(ch->constants.values[ch->code[cm + 1]])) {
+            uint8_t slot = ch->code[lm + 1], cidx = ch->code[cm + 1];
+            ch->count = n - 7;
+            emitByte(p, OP_ADD_LOCAL_CONST8_SET);
+            emitByte(p, slot);
+            emitByte(p, cidx);
+            return;
+        }
         uint8_t slot = ch->code[n - 1];
         ch->count = n - 2;
         emitBytes(p, OP_SET_LOCAL_POP, slot);

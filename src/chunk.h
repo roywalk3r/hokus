@@ -53,6 +53,7 @@ typedef enum {
     OP_GREATER_JUMP,
     OP_SET_LOCAL_POP,
     OP_SET_GLOBAL_POP,
+    OP_ADD_LOCAL_CONST8_SET,
 } OpCode;
 
 typedef struct ObjClass ObjClass;
