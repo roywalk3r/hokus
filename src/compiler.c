@@ -56,6 +56,7 @@ struct Compiler {
     Upvalue upvalues[256];
     int scopeDepth;
     int numConstStart; /* byte offset of latest OP_CONSTANT push, -1 if none */
+    int localGetStart; /* byte offset of latest OP_GET_LOCAL push, -1 if none */
 };
 
 typedef struct ClassCompiler {
@@ -218,6 +219,7 @@ static void initCompiler(Compiler *compiler, Compiler *enclosing,
     compiler->localCount = 0;
     compiler->scopeDepth = 0;
     compiler->numConstStart = -1;
+    compiler->localGetStart = -1;
     compiler->function->chunk = compiler->chunk;
     if (name != NULL) compiler->function->name = copyString(name, nameLen);
     current = compiler;
@@ -425,11 +427,36 @@ static bool tryFoldNegate(double *out) {
     return true;
 }
 
+/* Peephole: `local - numeric-literal` (both freshly pushed, adjacent at the
+   chunk tail) fuses GET_LOCAL + CONSTANT8 + SUBTRACT into one 3-byte op.
+   Marks are only hints — the pattern is verified byte-for-byte. Constant
+   must be a number: a string rhs has different (concat-for-+) semantics and
+   subtraction rejects it at runtime anyway. */
+static bool tryFuseLocalConstSub(Parser *p, int lhsLocalMark) {
+    Chunk *ch = currentChunk();
+    int rhsStart = current->numConstStart;
+    if (lhsLocalMark < 0 || rhsStart < 0) return false;
+    if (ch->code[lhsLocalMark] != OP_GET_LOCAL ||
+        ch->code[rhsStart] != OP_CONSTANT8) return false;
+    if (lhsLocalMark != ch->count - 4 || rhsStart != ch->count - 2)
+        return false;
+    int cidx = ch->code[rhsStart + 1];
+    if (!IS_NUMBER(ch->constants.values[cidx])) return false;
+    int slot = ch->code[lhsLocalMark + 1];
+    ch->count -= 4; /* rewinds code+lines together; nothing can jump into the tail */
+    current->numConstStart = -1;
+    emitByte(p, OP_SUB_LOCAL_CONST8);
+    emitByte(p, (uint8_t)slot);
+    emitByte(p, (uint8_t)cidx);
+    return true;
+}
+
 static void binary(Parser *p, Compiler *c, bool canAssign) {
     (void)c; (void)canAssign;
     TokenType operatorType = p->previous.type;
     ParseRule *rule = getRule(operatorType);
     int lhsConstMark = current->numConstStart; /* lhs parse just ended */
+    int lhsLocalMark = current->localGetStart;
     parsePrecedence(p, (Precedence)(rule->precedence + 1));
     switch (operatorType) {
         case TOKEN_BANG_EQUAL:    emitBytes(p, OP_EQUAL, OP_NOT); break;
@@ -438,8 +465,17 @@ static void binary(Parser *p, Compiler *c, bool canAssign) {
         case TOKEN_GREATER_EQUAL: emitBytes(p, OP_LESS, OP_NOT); break;
         case TOKEN_LESS:          emitByte(p, OP_LESS); break;
         case TOKEN_LESS_EQUAL:    emitBytes(p, OP_GREATER, OP_NOT); break;
+        case TOKEN_MINUS: {
+            double r;
+            if (tryFoldBinary(operatorType, lhsConstMark, &r)) {
+                emitConstant(p, NUMBER_VAL(r));
+                break;
+            }
+            if (tryFuseLocalConstSub(p, lhsLocalMark)) break;
+            emitByte(p, OP_SUBTRACT);
+            break;
+        }
         case TOKEN_PLUS:
-        case TOKEN_MINUS:
         case TOKEN_STAR:
         case TOKEN_SLASH:
         case TOKEN_PERCENT: {
@@ -449,7 +485,6 @@ static void binary(Parser *p, Compiler *c, bool canAssign) {
                 break;
             }
             emitByte(p, operatorType == TOKEN_PLUS    ? OP_ADD
-                      : operatorType == TOKEN_MINUS   ? OP_SUBTRACT
                       : operatorType == TOKEN_STAR    ? OP_MULTIPLY
                       : operatorType == TOKEN_SLASH   ? OP_DIVIDE : OP_MODULO);
             break;
@@ -542,7 +577,11 @@ static void namedVariable(Parser *p, Token name, bool canAssign) {
         else emitBytes(p, setOp, (uint8_t)arg);
     } else {
         if (getOp == OP_GET_GLOBAL) emitConstRef(p, getOp, arg);
-        else emitBytes(p, getOp, (uint8_t)arg);
+        else {
+            if (getOp == OP_GET_LOCAL)
+                current->localGetStart = currentChunk()->count; /* fuse-mark */
+            emitBytes(p, getOp, (uint8_t)arg);
+        }
     }
 }
 

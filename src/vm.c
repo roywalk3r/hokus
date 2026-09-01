@@ -315,6 +315,7 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_CLASS, &&op_OP_METHOD, &&op_OP_INHERIT, &&op_OP_GET_SUPER,
         &&op_OP_INVOKE, &&op_OP_SUPER_INVOKE, &&op_OP_STATIC_METHOD,
         &&op_OP_MODULO, &&op_OP_POP_JUMP_IF_FALSE, &&op_OP_CONSTANT8,
+        &&op_OP_SUB_LOCAL_CONST8,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
@@ -407,6 +408,18 @@ static InterpretResult run(VM *vm, int budget) {
                 continue;
             }
             op_OP_SUBTRACT: BINARY_OP(NUMBER_VAL, -); continue;
+            op_OP_SUB_LOCAL_CONST8: {
+                uint8_t slot = READ_BYTE();
+                Value b = frame->closure->function->chunk->constants.values[
+                    READ_BYTE()];
+                Value a = FRAME_SLOTS[slot];
+                if (!IS_NUMBER(a)) { /* rhs is a number (compile-time checked) */
+                    runtimeError(vm, "Operands must be numbers.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                push(vm, NUMBER_VAL(AS_NUMBER(a) - AS_NUMBER(b)));
+                continue;
+            }
             op_OP_MULTIPLY: BINARY_OP(NUMBER_VAL, *); continue;
             op_OP_DIVIDE:   BINARY_OP(NUMBER_VAL, /); continue;
             op_OP_NOT:      push(vm, BOOL_VAL(isFalsey(pop(vm)))); continue;

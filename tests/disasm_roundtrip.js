@@ -19,13 +19,14 @@ const OPS = [
   "OP_CALL", "OP_RETURN", "OP_GET_PROPERTY", "OP_SET_PROPERTY",
   "OP_CLASS", "OP_METHOD", "OP_INHERIT", "OP_GET_SUPER",
   "OP_INVOKE", "OP_SUPER_INVOKE", "OP_STATIC_METHOD", "OP_MODULO",
-  "OP_POP_JUMP_IF_FALSE", "OP_CONSTANT8",
+  "OP_POP_JUMP_IF_FALSE", "OP_CONSTANT8", "OP_SUB_LOCAL_CONST8",
 ];
 const OPC = Object.fromEntries(OPS.map((n, i) => [n, i]));
 const CONST_OPS = new Set(["OP_CONSTANT", "OP_GET_GLOBAL", "OP_DEFINE_GLOBAL",
   "OP_SET_GLOBAL", "OP_GET_PROPERTY", "OP_SET_PROPERTY", "OP_CLASS",
   "OP_METHOD", "OP_GET_SUPER", "OP_CLOSURE", "OP_STATIC_METHOD"]);
 const CONST8_OPS = new Set(["OP_CONSTANT8"]); /* same operand text, 1-byte index */
+const LOCAL_CONST8_OPS = new Set(["OP_SUB_LOCAL_CONST8"]); /* slot + 1-byte const */
 const BYTE_OPS = new Set(["OP_GET_LOCAL", "OP_SET_LOCAL", "OP_GET_UPVALUE",
   "OP_SET_UPVALUE", "OP_CALL"]);
 const JUMP_FWD = new Set(["OP_JUMP", "OP_JUMP_IF_FALSE", "OP_POP_JUMP_IF_FALSE"]);
@@ -117,6 +118,12 @@ function assemble(listing) {
             code.push(u[1] === "local" ? 1 : 0, Number(u[2]));
           }
         }
+      } else if (LOCAL_CONST8_OPS.has(op)) {
+        const c = operand.match(/^(\d+) (\d+) (.*)$/);
+        const idx = Number(c[2]);
+        needConst(idx);
+        consts[idx] = parseValue(c[3]);
+        code.push(Number(c[1]), idx & 0xff);
       } else if (BYTE_OPS.has(op)) {
         code.push(Number(operand));
       } else if (JUMP_FWD.has(op)) {

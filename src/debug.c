@@ -103,6 +103,20 @@ static int constant8Instruction(const char *name, Chunk *chunk, int offset) {
     return offset + 2;
 }
 
+static int localConst8Instruction(const char *name, Chunk *chunk, int offset) {
+    uint8_t slot = chunk->code[offset + 1];
+    uint8_t constant = chunk->code[offset + 2];
+    emitPadded(name, 16);
+    emitPadded("", 4);
+    emitInt(slot);
+    emit(" ");
+    emitInt(constant);
+    emit(" ");
+    emitValueBrief(chunk->constants.values[constant]);
+    emit("\n");
+    return offset + 3;
+}
+
 static int invokeInstruction(const char *name, Chunk *chunk, int offset) {
     uint16_t constant = (uint16_t)((chunk->code[offset + 1] << 8) | chunk->code[offset + 2]);
     uint8_t argCount = chunk->code[offset + 3];
@@ -187,6 +201,8 @@ int disassembleInstruction(Chunk *chunk, int offset) {
     switch (instruction) {
         case OP_CONSTANT:      return constantInstruction("OP_CONSTANT", chunk, offset);
         case OP_CONSTANT8:     return constant8Instruction("OP_CONSTANT8", chunk, offset);
+        case OP_SUB_LOCAL_CONST8:
+            return localConst8Instruction("OP_SUB_LOCAL_CONST8", chunk, offset);
         case OP_NIL:           return simpleInstruction("OP_NIL", offset);
         case OP_TRUE:          return simpleInstruction("OP_TRUE", offset);
         case OP_FALSE:         return simpleInstruction("OP_FALSE", offset);
