@@ -19,4 +19,13 @@ void hk_free_bump(void *ptr, size_t size); /* recycles blocks <= 256 bytes */
 #define HK_FREE(ptr, size) free(ptr)
 #endif
 
+/* Truncated modulo without libm (fmod semantics): cast truncation is exact
+   for |a/b| < ~2^62; shared by the VM and the compiler's constant folder so
+   folded constants and runtime results never disagree. */
+static inline double hkModulo(double a, double b) {
+    double t = a / b;
+    double q = (t >= -4.6e18 && t <= 4.6e18) ? (double)(long long)t : t;
+    return a - b * q;
+}
+
 #endif

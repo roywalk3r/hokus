@@ -27,10 +27,11 @@ function genProgram(rnd) {
       if (pick() < 0.15) return `(0 - ${int(100) + 1})`; /* negative literal */
       return pick() < 0.7 ? String(int(1000)) : `${int(100)}.${int(10)}`;
     }
-    const ops = ["+", "-", "*", "/"];
-    const op = ops[int(4)];
-    // division by literal zero is legal IEEE-754, but keep results sane
-    const rhs = op === "/" ? `(${int(9) + 1})` : numExpr(depth - 1);
+    const ops = ["+", "-", "*", "/", "%"];
+    const op = ops[int(5)];
+    // division by literal zero is legal IEEE-754, but keep results sane;
+    // modulo by zero is a runtime error — avoid it in generated programs
+    const rhs = op === "/" || op === "%" ? `(${int(9) + 1})` : numExpr(depth - 1);
     return `(${numExpr(depth - 1)} ${op} ${rhs})`;
   }
 

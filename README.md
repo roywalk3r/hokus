@@ -45,8 +45,10 @@ block-scoped locals; `if/else`, `while`, `for`, `and`, `or`, `!`; first-class
 functions with recursion and **closures**; **classes** with methods, initializers,
 `this`, inheritance, and `super`; **static methods** (`static m() {}` — stored
 on the class object, inherited, no `this`); `print`; a `clock()` native.
-Deviations from stock Lox: none (the corpus's `static` tests are upstream of
-this book chapter, so statics are golden-tested locally).
+Deviations from stock Lox: `%` — truncated modulo on numbers
+(`print 17 % 5;` → `2`, `x % 0` is a runtime error), since the freestanding
+build can't rely on libm. Otherwise none (the corpus's `static` tests are
+upstream of this book chapter, so statics are golden-tested locally).
 
 Programs span files with `import "lib.hk";` — include semantics (the module's
 top-level declarations compile right into the importing unit), resolved

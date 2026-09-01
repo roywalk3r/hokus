@@ -1,10 +1,8 @@
 // dungeon.hk — a tiny deterministic crawl: classes, statics, closures.
 // Fully deterministic (no clock/randomness) so native and WASM agree.
 
-// No % operator in the language: mod-6 by repeated subtraction.
 fun die(acc) {
-    while (acc >= 6) acc = acc - 6;
-    return 1 + acc;
+    return 1 + acc % 6;
 }
 
 fun digit(d) {
@@ -15,12 +13,12 @@ fun digit(d) {
     if (d == 8) return "8"; return "9";
 }
 
-// int -> string without a % operator (tens by subtraction)
+// int -> string
 fun text(n) {
     if (n < 0) return "-" + text(0 - n);
-    var tens = 0; var top = n;
-    while (top >= 10) { top = top - 10; tens = tens + 1; }
     if (n >= 100) return "big";
+    var top = n % 10;
+    var tens = (n - top) / 10;
     if (tens == 0) return digit(top);
     return digit(tens) + digit(top);
 }

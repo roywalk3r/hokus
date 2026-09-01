@@ -389,11 +389,13 @@ static bool tryFoldBinary(TokenType op, int lhsStart, double *out) {
         return false;
     double a = constNumberAt(ch, lhsStart), b = constNumberAt(ch, rhsStart);
     if (a != a || b != b) return false;
+    if (op == TOKEN_PERCENT && b == 0) return false; /* runtime error, not a fold */
     ch->count -= 6;
     current->numConstStart = -1;
     *out = op == TOKEN_PLUS  ? a + b
          : op == TOKEN_MINUS ? a - b
-         : op == TOKEN_STAR  ? a * b : a / b;
+         : op == TOKEN_STAR  ? a * b
+         : op == TOKEN_SLASH ? a / b : hkModulo(a, b);
     return true;
 }
 
@@ -426,15 +428,17 @@ static void binary(Parser *p, Compiler *c, bool canAssign) {
         case TOKEN_PLUS:
         case TOKEN_MINUS:
         case TOKEN_STAR:
-        case TOKEN_SLASH: {
+        case TOKEN_SLASH:
+        case TOKEN_PERCENT: {
             double r;
             if (tryFoldBinary(operatorType, lhsConstMark, &r)) {
                 emitConstant(p, NUMBER_VAL(r));
                 break;
             }
-            emitByte(p, operatorType == TOKEN_PLUS  ? OP_ADD
-                      : operatorType == TOKEN_MINUS ? OP_SUBTRACT
-                      : operatorType == TOKEN_STAR  ? OP_MULTIPLY : OP_DIVIDE);
+            emitByte(p, operatorType == TOKEN_PLUS    ? OP_ADD
+                      : operatorType == TOKEN_MINUS   ? OP_SUBTRACT
+                      : operatorType == TOKEN_STAR    ? OP_MULTIPLY
+                      : operatorType == TOKEN_SLASH   ? OP_DIVIDE : OP_MODULO);
             break;
         }
         default: return;
@@ -686,6 +690,7 @@ static ParseRule rules[] = {
     [TOKEN_SEMICOLON]     = {NULL,     NULL,   PREC_NONE},
     [TOKEN_SLASH]         = {NULL,     binary, PREC_FACTOR},
     [TOKEN_STAR]          = {NULL,     binary, PREC_FACTOR},
+    [TOKEN_PERCENT]       = {NULL,     binary, PREC_FACTOR},
     [TOKEN_BANG]          = {unary,    NULL,   PREC_NONE},
     [TOKEN_BANG_EQUAL]    = {NULL,     binary, PREC_EQUALITY},
     [TOKEN_EQUAL]         = {NULL,     NULL,   PREC_NONE},

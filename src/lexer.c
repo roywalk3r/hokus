@@ -165,6 +165,7 @@ Token nextToken(Lexer *l) {
         case '+': return makeToken(l, TOKEN_PLUS);
         case '/': return makeToken(l, TOKEN_SLASH);
         case '*': return makeToken(l, TOKEN_STAR);
+        case '%': return makeToken(l, TOKEN_PERCENT);
         case '!': return makeToken(l, match(l, '=') ? TOKEN_BANG_EQUAL : TOKEN_BANG);
         case '=': return makeToken(l, match(l, '=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL);
         case '<': return makeToken(l, match(l, '=') ? TOKEN_LESS_EQUAL : TOKEN_LESS);
@@ -178,7 +179,7 @@ Token nextToken(Lexer *l) {
 
 static const char *TOKEN_NAMES[] = {
     "LEFT_PAREN", "RIGHT_PAREN", "LEFT_BRACE", "RIGHT_BRACE",
-    "COMMA", "DOT", "MINUS", "PLUS", "SEMICOLON", "SLASH", "STAR",
+    "COMMA", "DOT", "MINUS", "PLUS", "SEMICOLON", "SLASH", "STAR", "PERCENT",
     "BANG", "BANG_EQUAL", "EQUAL", "EQUAL_EQUAL",
     "GREATER", "GREATER_EQUAL", "LESS", "LESS_EQUAL",
     "IDENTIFIER", "STRING", "NUMBER",

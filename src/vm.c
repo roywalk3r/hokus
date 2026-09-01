@@ -300,6 +300,7 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_RETURN, &&op_OP_GET_PROPERTY, &&op_OP_SET_PROPERTY,
         &&op_OP_CLASS, &&op_OP_METHOD, &&op_OP_INHERIT, &&op_OP_GET_SUPER,
         &&op_OP_INVOKE, &&op_OP_SUPER_INVOKE, &&op_OP_STATIC_METHOD,
+        &&op_OP_MODULO,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
@@ -534,6 +535,22 @@ static InterpretResult run(VM *vm, int budget) {
                 ObjClass *klass = AS_CLASS(peek(vm, 1));
                 tableSet(klass->statics, name, peek(vm, 0));
                 pop(vm); /* closure */
+                continue;
+            }
+            /* custom block (not BINARY_OP): divide-by-zero is a runtime error
+               here, while OP_DIVIDE deliberately yields inf per IEEE */
+            op_OP_MODULO: {
+                if (!IS_NUMBER(peek(vm, 0)) || !IS_NUMBER(peek(vm, 1))) {
+                    runtimeError(vm, "Operands must be numbers.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                double b = AS_NUMBER(pop(vm));
+                double a = AS_NUMBER(pop(vm));
+                if (b == 0) {
+                    runtimeError(vm, "Modulo by zero.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                push(vm, NUMBER_VAL(hkModulo(a, b)));
                 continue;
             }
             op_OP_INHERIT: {

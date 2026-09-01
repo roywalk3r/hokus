@@ -45,6 +45,7 @@ typedef enum {
     OP_SUPER_INVOKE,
     /* appended last: bytecode goldens and .hki images index these by value */
     OP_STATIC_METHOD,
+    OP_MODULO,
 } OpCode;
 
 typedef struct ObjClass ObjClass;

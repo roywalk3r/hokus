@@ -1,0 +1,8 @@
+// % — truncated (fmod-style) modulo, factor precedence.
+print 17 % 5;      // 2
+print -17 % 5;     // -2 (C semantics: sign of the dividend)
+print 7.5 % 2;     // 1.5
+print 2 + 3 % 4;   // 5 — % binds like * and /
+print 10 % 3 + 1;  // 2
+var x = 29;
+print x % 6;       // 5
