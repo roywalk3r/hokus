@@ -136,6 +136,16 @@ and appears in the README or the playground.
   (a binary with the op in the table but the fusion disabled, emitting
   byte-identical fib code, shows the identical +1.7%).
 
+- **For-loop rotation** — `for (init; local < const; increment)` compiles
+  bottom-tested: [OP_JUMP→cond][body][increment][OP_LESS_LOCAL_CONST8_LOOP
+  →body]. The entry jump is paid once and the steady state has no
+  unconditional jumps (previously one per iteration, plus a separate body
+  back-edge). rotateForLoop swaps increment/body en bloc — jump distances
+  inside a moved span are preserved, so no and/or guard is needed; the
+  shape check (condition emitted *as* the fused LC8J, adjacent to
+  loopStart) is the whole precondition. Leaf: ~11% native, ~11% WASM
+  (interleaved A/B); fib flat.
+
 ## Next (in order)
 
 1. **Call-path work, remaining** — after the slots-window, sub-fusion, and

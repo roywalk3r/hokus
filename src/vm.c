@@ -321,6 +321,7 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_LESS_LOCAL_CONST8_JUMP, &&op_OP_ADD_LOCAL_CONST8,
         &&op_OP_ADD_LOCAL_CONST8_SET_LOOP,
         &&op_OP_ADD_LOCAL_CONST8_RETURN,
+        &&op_OP_LESS_LOCAL_CONST8_LOOP,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
@@ -549,6 +550,21 @@ static InterpretResult run(VM *vm, int budget) {
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 if (!(AS_NUMBER(a) < AS_NUMBER(b))) frame->ip += offset;
+                continue;
+            }
+            /* rotated for-loop bottom check: if (slot < const) jump back to
+               the body. Same operand checks as the forward form */
+            op_OP_LESS_LOCAL_CONST8_LOOP: {
+                uint8_t slot = READ_BYTE();
+                Value b = frame->closure->function->chunk->constants.values[
+                    READ_BYTE()];
+                uint16_t offset = READ_SHORT();
+                Value a = FRAME_SLOTS[slot];
+                if (!IS_NUMBER(a)) {
+                    runtimeError(vm, "Operands must be numbers.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                if (AS_NUMBER(a) < AS_NUMBER(b)) frame->ip -= offset;
                 continue;
             }
             op_OP_LOOP: {

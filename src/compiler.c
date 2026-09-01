@@ -1131,6 +1131,51 @@ static void whileStatement(Parser *p) {
     patchJump(p, exitJump);
 }
 
+/* Loop rotation for `for (init; local < const; increment)`. After the
+   normal parse the chunk tail is [LC8J 5][OP_JUMP 3][increment][body];
+   rewrite it as [OP_JUMP→cond][body][increment][LC8_LOOP→body]. The entry
+   jump is paid once; the steady state has no unconditional jumps at all.
+   Both moved regions shift en bloc, so jump distances inside them are
+   preserved — no and/or guard is needed, only the shape checks at the
+   call site. */
+static void rotateForLoop(Parser *p, int c0, int incStart, int incEnd) {
+    Chunk *ch = currentChunk();
+    uint8_t cslot = ch->code[c0 + 1], ccidx = ch->code[c0 + 2];
+    int lenI = incEnd - incStart;
+    int e = ch->count;
+    int lenD = e - incEnd;
+    uint8_t *tmp = HK_REALLOC(NULL, 0, lenI);
+    int *tmpLines = HK_REALLOC(NULL, 0, lenI * (int)sizeof(int));
+    for (int i = 0; i < lenI; i++) {
+        tmp[i] = ch->code[incStart + i];
+        tmpLines[i] = ch->lines[incStart + i];
+    }
+    for (int i = 0; i < lenD; i++) {
+        ch->code[c0 + 3 + i] = ch->code[incEnd + i];
+        ch->lines[c0 + 3 + i] = ch->lines[incEnd + i];
+    }
+    for (int i = 0; i < lenI; i++) {
+        ch->code[c0 + 3 + lenD + i] = tmp[i];
+        ch->lines[c0 + 3 + lenD + i] = tmpLines[i];
+    }
+    HK_FREE(tmp, lenI);
+    HK_FREE(tmpLines, lenI * (int)sizeof(int));
+    /* entry jump: over body+increment to the rotated condition */
+    int jump = lenD + lenI;
+    if (jump > UINT16_MAX) error(p, "Too much code to jump over.");
+    ch->code[c0] = OP_JUMP;
+    ch->code[c0 + 1] = (jump >> 8) & 0xff;
+    ch->code[c0 + 2] = jump & 0xff;
+    ch->count = e - 5;
+    emitByte(p, OP_LESS_LOCAL_CONST8_LOOP);
+    emitByte(p, cslot);
+    emitByte(p, ccidx);
+    int off = ch->count - (c0 + 3) + 2; /* emitLoop convention, back to body */
+    if (off > UINT16_MAX) error(p, "Loop body too large.");
+    emitByte(p, (off >> 8) & 0xff);
+    emitByte(p, off & 0xff);
+}
+
 static void forStatement(Parser *p) {
     beginScope();
     consume(p, TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
@@ -1143,10 +1188,16 @@ static void forStatement(Parser *p) {
     }
     int loopStart = currentChunk()->count;
     int exitJump = -1;
+    bool rotatable = false;
     if (!matchToken(p, TOKEN_SEMICOLON)) {
         expression(p);
         consume(p, TOKEN_SEMICOLON, "Expect ';' after loop condition.");
         exitJump = emitCondJump(p);
+        /* rotation needs the condition to be exactly the fused LC8J op:
+           exitJump points at its jump operand, op start at -3, and nothing
+           else may precede it in the condition */
+        rotatable = exitJump >= 3 && exitJump - 3 == loopStart &&
+                    currentChunk()->code[loopStart] == OP_LESS_LOCAL_CONST8_JUMP;
     }
     if (!matchToken(p, TOKEN_RIGHT_PAREN)) {
         int bodyJump = emitJump(p, OP_JUMP);
@@ -1154,6 +1205,13 @@ static void forStatement(Parser *p) {
         expression(p);
         emitExprPop(p);
         consume(p, TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
+        if (rotatable) {
+            int incEnd = currentChunk()->count;
+            statement(p);
+            rotateForLoop(p, loopStart, incrementStart, incEnd);
+            endScope(p);
+            return;
+        }
         emitLoopBack(p, loopStart);
         loopStart = incrementStart;
         patchJump(p, bodyJump);
