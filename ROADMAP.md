@@ -91,6 +91,12 @@ and appears in the README or the playground.
   directly, no bool round-trip. `and`/`or` keep OP_JUMP_IF_FALSE.
   fib(28): ~6% native, ~4% WASM; leaf calls ~3.5% native (all A/B'd).
 
+- **`OP_SET_LOCAL_POP` / `OP_SET_GLOBAL_POP`** — assignment in discard
+  position (expression statements, for-increments) fuses SET_x+POP.
+  Fusion marks are instruction-start marks (setStmtStart/cmpJumpStart),
+  never positional byte guesses — an operand byte can alias an opcode
+  (this bit twice). Leaf native ~5%, fib ~2%.
+
 ## Next (in order)
 
 1. **Call-path work, remaining** — after the slots-window, sub-fusion, and
