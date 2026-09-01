@@ -107,7 +107,10 @@ and appears in the README or the playground.
   Compile-verified numeric rhs; a non-number slot keeps OP_ADD's exact
   "two numbers or two strings" error (no concat path fires — rhs is
   never a string). Leaf: ~9% native, ~5% WASM (interleaved A/B); fib
-  flat native, ±3% WASM layout noise as before.
+  flat native, ±3% WASM layout noise as before. emitExprPop folds the
+  resulting ADD_LOCAL_CONST8; SET_LOCAL(same slot) tail back into
+  OP_ADD_LOCAL_CONST8_SET, keeping `i = i + 1` at one dispatch (that
+  fold-back alone: leaf ~5% native / ~6% WASM).
 
 - **`OP_LESS_LOCAL_CONST8_JUMP`** — `local < const` branch condition
   (fib's `n < 2`, every `for (i < n)`/while bound) as one 5-byte op:
