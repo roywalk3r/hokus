@@ -27,6 +27,31 @@ static void *freeList[FL_CLASSES];
 
 static size_t bucketOf(size_t size) { return (size >> 4) - 1; }
 
+/* Module store for `import` on the no-filesystem host: JS stages name/source
+   into fixed buffers, hk_add_module copies both into a persistent arena
+   (untouched by hkHeapReset, so modules survive across runs). Lookup is by
+   exact path string — the playground has no directories. */
+#define MOD_MAX  16
+#define MOD_NAME 64
+#define MOD_SRC  (32 * 1024)
+static char modStageName[MOD_NAME];
+static char modStageSrc[MOD_SRC];
+static char modNames[MOD_MAX][MOD_NAME];
+static char modArena[MOD_MAX][MOD_SRC];
+static int modCount;
+
+static bool pathEq(const char *a, const char *b) {
+    while (*a && *a == *b) { a++; b++; }
+    return *a == *b;
+}
+
+static const char *wasmReadModule(const char *path) {
+    for (int i = 0; i < modCount; i++) {
+        if (pathEq(modNames[i], path)) return modArena[i];
+    }
+    return NULL;
+}
+
 static void bufferEmit(const char *s);
 
 static void hkHeapReset(void) {
@@ -87,12 +112,31 @@ static void bufferEmit(const char *s) {
 char *hk_source_buffer(void) { return srcBuf; }
 int hk_source_capacity(void) { return SRC_SIZE; }
 
+char *hk_module_name_buffer(void) { return modStageName; }
+char *hk_module_src_buffer(void) { return modStageSrc; }
+int hk_module_src_capacity(void) { return MOD_SRC; }
+
+/* 0 ok, 1 rejected (full / oversized). Copies out of the staging buffers. */
+int hk_add_module(int nameLen, int srcLen) {
+    if (modCount >= MOD_MAX) return 1;
+    if (nameLen <= 0 || nameLen >= MOD_NAME || srcLen <= 0 || srcLen >= MOD_SRC) return 1;
+    for (int i = 0; i < nameLen; i++) modNames[modCount][i] = modStageName[i];
+    modNames[modCount][nameLen] = '\0';
+    for (int i = 0; i < srcLen; i++) modArena[modCount][i] = modStageSrc[i];
+    modArena[modCount][srcLen] = '\0';
+    modCount++;
+    return 0;
+}
+
+void hk_clear_modules(void) { modCount = 0; }
+
 static int runInner(int sourceLength, int trace) {
     hkHeapReset();
     outLen = 0;
     virtualClock += 1;
     srcBuf[sourceLength < SRC_SIZE ? sourceLength : SRC_SIZE - 1] = '\0';
     hkEmit = bufferEmit;
+    hkReadModule = wasmReadModule;
     initVM(&theVM);
     theVM.trace = trace;
     InterpretResult result = interpret(&theVM, srcBuf, sourceLength);
@@ -114,6 +158,7 @@ int hk_prepare(int sourceLength, int trace) {
     virtualClock += 1;
     srcBuf[sourceLength < SRC_SIZE ? sourceLength : SRC_SIZE - 1] = '\0';
     hkEmit = bufferEmit;
+    hkReadModule = wasmReadModule;
     initVM(&theVM);
     theVM.trace = trace;
     outBuf[outLen] = '\0';
@@ -150,6 +195,7 @@ int hk_disasm(int sourceLength) {
     outLen = 0;
     srcBuf[sourceLength < SRC_SIZE ? sourceLength : SRC_SIZE - 1] = '\0';
     hkEmit = bufferEmit;
+    hkReadModule = wasmReadModule;
     objectsInit(); /* heap was rewound: intern table/object list must not dangle */
     ObjFunction *fn = compile(srcBuf, sourceLength);
     outBuf[outLen] = '\0';

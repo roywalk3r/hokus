@@ -53,8 +53,9 @@ upstream of this book chapter, so statics are golden-tested locally).
 Programs span files with `import "lib.hk";` — include semantics (the module's
 top-level declarations compile right into the importing unit), resolved
 relative to the importing file, top-level only, circular imports rejected at
-compile time. Native host only: the freestanding WASM build has no filesystem
-and reports `Cannot import module "..."` as a compile error.
+compile time. On the native host imports resolve through the filesystem; the freestanding
+WASM build resolves them through a preloaded module arena instead (the
+playground registers `dice.hk`) — an unregistered path is a compile error.
 
 ## Performance
 

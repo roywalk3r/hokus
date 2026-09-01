@@ -52,8 +52,10 @@ and appears in the README or the playground.
 - **Modules** — `import "lib.hk";` compiles the module inline into the
   importing unit (include semantics: its top-level declarations land in the
   same scope), top-level only, cycle-detected, resolved relative to the
-  importing file. No new opcodes. Native host only — the freestanding WASM
-  build has no filesystem and reports `import` as a compile error (gated).
+  importing file. No new opcodes. Native resolves via the filesystem; the
+  freestanding WASM build resolves via a preloaded module arena
+  (`hk_add_module`/`hk_clear_modules`, exact-path match, persistent across
+  runs) — an unregistered path stays a compile error (both gated).
 
 - **Inline cache for OP_INVOKE** — monomorphic (offset, klass) → method cache
   per call site, 8 direct-mapped slots per chunk, marked through the

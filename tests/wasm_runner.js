@@ -60,6 +60,23 @@ for (const f of readdirSync(goldenDir).filter((f) => f.endsWith(".hk"))) {
     `exit ${code}, got ${JSON.stringify(read().slice(0, 120))}`);
 }
 
+// 2c. module arena: a registered module resolves its import; unregistered
+// ones still report the compile error (check 2b ran before any registration)
+{
+  const enc = new TextEncoder();
+  const addMod = (name, src) => {
+    const nb = enc.encode(name), sb = enc.encode(src);
+    u8().set(nb, vm.hk_module_name_buffer());
+    u8().set(sb, vm.hk_module_src_buffer());
+    return vm.hk_add_module(nb.length, sb.length);
+  };
+  const rc = addMod("lib.hk", "fun hi() { return 7; } class M { static v() { return \"ok\"; } }");
+  const code = vm.hk_run(load('import "lib.hk"; print hi(); print M.v();'));
+  check("import-arena", rc === 0 && code === 0 && read() === "7\nok\n",
+    `add ${rc}, exit ${code}, got ${JSON.stringify(read().slice(0, 120))}`);
+  vm.hk_clear_modules();
+}
+
 // 2. trace mode interleaves instruction lines with program output
 // (constant folding collapses literal arithmetic, so route one operand
 // through a variable to keep a live OP_ADD in the stream)

@@ -68,6 +68,7 @@
           <option value="strings">strings</option>
           <option value="showcase">showcase — closures + classes</option>
           <option value="dungeon">dungeon — statics + closures + %</option>
+          <option value="modules">modules — import "dice.hk"</option>
         </select>
         <label style="font-size:12px"><input type="checkbox" id="trace"> trace</label>
         <button id="step" disabled>Step ▸</button>
@@ -228,7 +229,51 @@ if (hero.hp <= 0) {
     print hero.describe() + " limps out";
 }
 `,
+  modules: `fun text0(n) {
+    if (n == 1) return "one"; if (n == 2) return "two";
+    if (n == 3) return "three"; if (n == 4) return "four";
+    if (n == 5) return "five"; return "six";
+}
+
+import "dice.hk";
+
+var d6 = Dice.seed(3);
+print "roll " + text0(d6());
+print "roll " + text0(d6());
+print "roll " + text0(d6());
+`,
 };
+
+/* Preloaded modules for the no-filesystem wasm host — registered once into
+   the VM's module arena, looked up by exact path in `import "name";`. */
+const MODULES = {
+  "dice.hk": `// dice.hk — a deterministic die via static factory + closure
+class Dice {
+    static seed(start) {
+        var acc = start;
+        fun roll() {
+            acc = acc + 29;
+            while (acc >= 97) acc = acc - 97;
+            return 1 + acc % 6;
+        }
+        return roll;
+    }
+}
+`,
+};
+
+function syncModules() {
+  if (!vm.hk_add_module) return;
+  vm.hk_clear_modules();
+  const u8 = new Uint8Array(vm.memory.buffer);
+  const enc = new TextEncoder();
+  for (const [name, src] of Object.entries(MODULES)) {
+    const nb = enc.encode(name), sb = enc.encode(src);
+    u8.set(nb, vm.hk_module_name_buffer());
+    u8.set(sb, vm.hk_module_src_buffer());
+    vm.hk_add_module(nb.length, sb.length);
+  }
+}
 
 const srcEl = document.getElementById("src");
 const outEl = document.getElementById("out");
@@ -243,6 +288,7 @@ let vm = null;
 WebAssembly.instantiateStreaming(fetch("hokus.wasm"), {}).then(({ instance }) => {
   vm = instance.exports;
   srcEl.value = EXAMPLES.fib;
+  syncModules();
   runBtn.disabled = false;
   stepBtn.disabled = false;
   statusEl.textContent = "vm ready";
