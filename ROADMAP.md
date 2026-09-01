@@ -81,12 +81,18 @@ and appears in the README or the playground.
   ~26% on the 1M leaf-call bench, ~2% on fib(30), native; compiled out on
   wasm32, where the extra local measured slower.
 
+- **`OP_SUB_LOCAL_CONST8`** — peephole fusing `local - numeric-literal`
+  (GET_LOCAL + CONSTANT8 + SUBTRACT → one 3-byte op; rhs proven numeric at
+  compile time so runtime checks only the slot). fib(28): ~12% native,
+  ~16% WASM, interleaved A/B.
+
 ## Next (in order)
 
-1. **Call-path work, remaining** — after the slots-window win, fib(28) is
-   ~35 ms native; folding CALL+RETURN (tail calls) or register-window frame
-   setup are what's left. Any candidate must move the fib/leaf benches under
-   interleaved A/B; baseline lives in benchmarks/baseline.json.
+1. **Call-path work, remaining** — after the slots-window and sub-fusion
+   wins, fib(28) is ~30 ms native; folding CALL+RETURN (tail calls) or
+   register-window frame setup are what's left. Any candidate must move
+   the fib/leaf benches under interleaved A/B; baseline lives in
+   benchmarks/baseline.json.
 
 (Measured and rejected: a monomorphic callee cache for OP_CALL sharing the
 chunk IC array — both natives' `callValue` type switch and wasm's br_table
