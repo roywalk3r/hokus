@@ -1,33 +1,33 @@
 {
-  "when": "2026-09-01T19:13:50.244Z",
+  "when": "2026-09-01T19:30:04.903Z",
   "results": {
     "fib(28) recursion": {
-      "wasm_ms": 30.14,
-      "native_ms": 20.72
+      "wasm_ms": 30.03,
+      "native_ms": 20.85
     },
     "1M leaf calls (call path)": {
-      "wasm_ms": 50.12,
-      "native_ms": 35.1
+      "wasm_ms": 48.41,
+      "native_ms": 33.5
     },
     "200k method calls (OP_INVOKE)": {
-      "wasm_ms": 23.53,
-      "native_ms": 16.75
+      "wasm_ms": 22.34,
+      "native_ms": 15.7
     },
     "200k static calls (class receiver)": {
-      "wasm_ms": 12.86,
-      "native_ms": 8.88
+      "wasm_ms": 12.6,
+      "native_ms": 8.3
     },
     "100k field gets (interned keys)": {
-      "wasm_ms": 7.04,
-      "native_ms": 5.35
+      "wasm_ms": 6.65,
+      "native_ms": 5.16
     },
     "300k field get/set churn": {
-      "wasm_ms": 78.16,
-      "native_ms": 58.85
+      "wasm_ms": 76.36,
+      "native_ms": 58.7
     },
     "2k string concat (+ GC)": {
-      "wasm_ms": 6.92,
-      "native_ms": 7
+      "wasm_ms": 6.93,
+      "native_ms": 7.09
     }
   }
 }

@@ -988,6 +988,18 @@ static void emitExprPop(Parser *p) {
     int n = ch->count;
     int mark = current->setStmtStart; /* instruction-start mark, not a guess */
     if (mark >= 0 && mark == n - 2 && ch->code[mark] == OP_SET_LOCAL) {
+        /* binary() may have already fused the rhs: tail is then
+           ADD_LOCAL_CONST8; SET_LOCAL — fold back to the one-op form */
+        if (current->andOrTarget <= n - 5 && n >= 5 &&
+            ch->code[n - 5] == OP_ADD_LOCAL_CONST8 &&
+            ch->code[n - 4] == ch->code[n - 1]) { /* same slot */
+            uint8_t slot = ch->code[n - 4], cidx = ch->code[n - 3];
+            ch->count = n - 5;
+            emitByte(p, OP_ADD_LOCAL_CONST8_SET);
+            emitByte(p, slot);
+            emitByte(p, cidx);
+            return;
+        }
         /* deeper fusion: `slot = slot + const` (`i = i + 1` increments) is
            GET_LOCAL; CONSTANT8; ADD; SET_LOCAL — all four marks verified */
         int lm = current->localGetStart, cm = current->numConstStart;
