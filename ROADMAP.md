@@ -55,11 +55,23 @@ and appears in the README or the playground.
   importing file. No new opcodes. Native host only — the freestanding WASM
   build has no filesystem and reports `import` as a compile error (gated).
 
+- **Inline cache for OP_INVOKE** — monomorphic (offset, klass) → method cache
+  per call site, 8 direct-mapped slots per chunk, marked through the
+  function-blacken GC path. 200k method calls: 23.8 → 19.6 ms native; static
+  calls (class-object receivers, no field-shadow check needed) sit at 12 ms,
+  the cheapest dispatch in the VM.
+
+- **`%` operator** — truncated (fmod-style) modulo at factor precedence,
+  one opcode, libm-free shared implementation (`hkModulo`) so compile-time
+  folding and the runtime agree bit-for-bit; `%` by zero is a runtime error
+  (unlike `/`, which keeps IEEE inf).
+
 ## Next (in order)
 
-1. **Inline cache for OP_INVOKE** — monomorphic (klass, name) → method cache
-   per call site, marked through the function-blacken path. Wins are real only
-   if tests/bench.js's method-call bench improves; baseline lives in
+1. **Field-offset cache for OP_GET_PROPERTY/OP_SET_PROPERTY** — the field-get
+   bench is the remaining table-lookup hot spot; cache (klass, name) → stable
+   field slot, invalidated on class-redefinition or table rehash. Wins are
+   real only if tests/bench.js's field bench improves; baseline lives in
    benchmarks/baseline.json.
 
 (Module namespaces are parked: true namespacing needs per-module
