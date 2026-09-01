@@ -315,7 +315,7 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_CLASS, &&op_OP_METHOD, &&op_OP_INHERIT, &&op_OP_GET_SUPER,
         &&op_OP_INVOKE, &&op_OP_SUPER_INVOKE, &&op_OP_STATIC_METHOD,
         &&op_OP_MODULO, &&op_OP_POP_JUMP_IF_FALSE, &&op_OP_CONSTANT8,
-        &&op_OP_SUB_LOCAL_CONST8,
+        &&op_OP_SUB_LOCAL_CONST8, &&op_OP_LESS_JUMP, &&op_OP_GREATER_JUMP,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
@@ -448,6 +448,28 @@ static InterpretResult run(VM *vm, int budget) {
             op_OP_POP_JUMP_IF_FALSE: {
                 uint16_t offset = READ_SHORT();
                 if (isFalsey(pop(vm))) frame->ip += offset;
+                continue;
+            }
+            /* fused comparison + discard-branch: same operand checks as
+               BINARY_OP, no intermediate bool on the stack */
+            op_OP_LESS_JUMP: {
+                uint16_t offset = READ_SHORT();
+                if (!IS_NUMBER(peek(vm, 0)) || !IS_NUMBER(peek(vm, 1))) {
+                    runtimeError(vm, "Operands must be numbers.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                double b = AS_NUMBER(pop(vm)), a = AS_NUMBER(pop(vm));
+                if (!(a < b)) frame->ip += offset;
+                continue;
+            }
+            op_OP_GREATER_JUMP: {
+                uint16_t offset = READ_SHORT();
+                if (!IS_NUMBER(peek(vm, 0)) || !IS_NUMBER(peek(vm, 1))) {
+                    runtimeError(vm, "Operands must be numbers.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                double b = AS_NUMBER(pop(vm)), a = AS_NUMBER(pop(vm));
+                if (!(a > b)) frame->ip += offset;
                 continue;
             }
             op_OP_LOOP: {

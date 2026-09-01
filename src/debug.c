@@ -238,6 +238,8 @@ int disassembleInstruction(Chunk *chunk, int offset) {
         case OP_STATIC_METHOD: return constantInstruction("OP_STATIC_METHOD", chunk, offset);
         case OP_MODULO:        return simpleInstruction("OP_MODULO", offset);
         case OP_POP_JUMP_IF_FALSE: return jumpInstruction("OP_POP_JUMP_IF_FALSE", 1, chunk, offset);
+        case OP_LESS_JUMP:    return jumpInstruction("OP_LESS_JUMP", 1, chunk, offset);
+        case OP_GREATER_JUMP: return jumpInstruction("OP_GREATER_JUMP", 1, chunk, offset);
         case OP_INHERIT:       return simpleInstruction("OP_INHERIT", offset);
         case OP_GET_SUPER:     return constantInstruction("OP_GET_SUPER", chunk, offset);
         case OP_INVOKE:        return invokeInstruction("OP_INVOKE", chunk, offset);

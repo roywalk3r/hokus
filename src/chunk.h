@@ -49,6 +49,8 @@ typedef enum {
     OP_POP_JUMP_IF_FALSE,
     OP_CONSTANT8,
     OP_SUB_LOCAL_CONST8,
+    OP_LESS_JUMP,
+    OP_GREATER_JUMP,
 } OpCode;
 
 typedef struct ObjClass ObjClass;

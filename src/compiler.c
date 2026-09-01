@@ -954,11 +954,27 @@ static void expressionStatement(Parser *p) {
     emitByte(p, OP_POP);
 }
 
+/* Statement-condition jump. If the condition just compiled to a bare
+   comparison at the chunk tail, fuse it with the branch: the comparison
+   result is only ever consumed by this jump. (and/or keep plain
+   OP_POP_JUMP_IF_FALSE — their value must survive.) */
+static int emitCondJump(Parser *p) {
+    Chunk *ch = currentChunk();
+    int last = ch->count - 1;
+    if (last >= 0 && (ch->code[last] == OP_LESS || ch->code[last] == OP_GREATER)) {
+        uint8_t fused = ch->code[last] == OP_LESS ? OP_LESS_JUMP
+                                                  : OP_GREATER_JUMP;
+        ch->count = last; /* rewind 1-byte comparison; code+lines go together */
+        return emitJump(p, fused);
+    }
+    return emitJump(p, OP_POP_JUMP_IF_FALSE);
+}
+
 static void ifStatement(Parser *p) {
     consume(p, TOKEN_LEFT_PAREN, "Expect '(' after 'if'.");
     expression(p);
     consume(p, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
-    int thenJump = emitJump(p, OP_POP_JUMP_IF_FALSE);
+    int thenJump = emitCondJump(p);
     statement(p);
     int elseJump = emitJump(p, OP_JUMP);
     patchJump(p, thenJump);
@@ -971,7 +987,7 @@ static void whileStatement(Parser *p) {
     consume(p, TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
     expression(p);
     consume(p, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
-    int exitJump = emitJump(p, OP_POP_JUMP_IF_FALSE);
+    int exitJump = emitCondJump(p);
     statement(p);
     emitLoop(p, loopStart);
     patchJump(p, exitJump);
@@ -992,7 +1008,7 @@ static void forStatement(Parser *p) {
     if (!matchToken(p, TOKEN_SEMICOLON)) {
         expression(p);
         consume(p, TOKEN_SEMICOLON, "Expect ';' after loop condition.");
-        exitJump = emitJump(p, OP_POP_JUMP_IF_FALSE);
+        exitJump = emitCondJump(p);
     }
     if (!matchToken(p, TOKEN_RIGHT_PAREN)) {
         int bodyJump = emitJump(p, OP_JUMP);
