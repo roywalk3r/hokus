@@ -318,7 +318,7 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_SUB_LOCAL_CONST8, &&op_OP_LESS_JUMP, &&op_OP_GREATER_JUMP,
         &&op_OP_SET_LOCAL_POP, &&op_OP_SET_GLOBAL_POP,
         &&op_OP_ADD_LOCAL_CONST8_SET, &&op_OP_RETURN_LOCAL,
-        &&op_OP_LESS_LOCAL_CONST8_JUMP,
+        &&op_OP_LESS_LOCAL_CONST8_JUMP, &&op_OP_ADD_LOCAL_CONST8,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
@@ -450,6 +450,19 @@ static InterpretResult run(VM *vm, int budget) {
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 push(vm, NUMBER_VAL(AS_NUMBER(a) - AS_NUMBER(b)));
+                continue;
+            }
+            op_OP_ADD_LOCAL_CONST8: {
+                uint8_t slot = READ_BYTE();
+                Value b = frame->closure->function->chunk->constants.values[
+                    READ_BYTE()];
+                Value a = FRAME_SLOTS[slot];
+                if (!IS_NUMBER(a)) { /* rhs is a number (compile-time checked),
+                    no string-concat path here */
+                    runtimeError(vm, "Operands must be two numbers or two strings.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                push(vm, NUMBER_VAL(AS_NUMBER(a) + AS_NUMBER(b)));
                 continue;
             }
             op_OP_MULTIPLY: BINARY_OP(NUMBER_VAL, *); continue;

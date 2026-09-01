@@ -102,6 +102,13 @@ and appears in the README or the playground.
   ~3% slower despite never executing the op — jump-table layout effect,
   noted in the commit.)
 
+- **`OP_ADD_LOCAL_CONST8`** — symmetric sibling of the SUB fusion:
+  `local + const` (leaf-callee `return a + 1` shapes) as one 3-byte op.
+  Compile-verified numeric rhs; a non-number slot keeps OP_ADD's exact
+  "two numbers or two strings" error (no concat path fires — rhs is
+  never a string). Leaf: ~9% native, ~5% WASM (interleaved A/B); fib
+  flat native, ±3% WASM layout noise as before.
+
 - **`OP_LESS_LOCAL_CONST8_JUMP`** — `local < const` branch condition
   (fib's `n < 2`, every `for (i < n)`/while bound) as one 5-byte op:
   slot + const8 + jump16, no stack round-trip. fib(28): ~16% native,

@@ -441,7 +441,7 @@ static bool tryFoldNegate(double *out) {
    Marks are only hints — the pattern is verified byte-for-byte. Constant
    must be a number: a string rhs has different (concat-for-+) semantics and
    subtraction rejects it at runtime anyway. */
-static bool tryFuseLocalConstSub(Parser *p, int lhsLocalMark) {
+static bool tryFuseLocalConstOp(Parser *p, int lhsLocalMark, uint8_t fusedOp) {
     Chunk *ch = currentChunk();
     int rhsStart = current->numConstStart;
     if (lhsLocalMark < 0 || rhsStart < 0) return false;
@@ -454,7 +454,7 @@ static bool tryFuseLocalConstSub(Parser *p, int lhsLocalMark) {
     int slot = ch->code[lhsLocalMark + 1];
     ch->count -= 4; /* rewinds code+lines together; nothing can jump into the tail */
     current->numConstStart = -1;
-    emitByte(p, OP_SUB_LOCAL_CONST8);
+    emitByte(p, fusedOp);
     emitByte(p, (uint8_t)slot);
     emitByte(p, (uint8_t)cidx);
     return true;
@@ -484,11 +484,22 @@ static void binary(Parser *p, Compiler *c, bool canAssign) {
                 emitConstant(p, NUMBER_VAL(r));
                 break;
             }
-            if (tryFuseLocalConstSub(p, lhsLocalMark)) break;
+            if (tryFuseLocalConstOp(p, lhsLocalMark, OP_SUB_LOCAL_CONST8)) break;
             emitByte(p, OP_SUBTRACT);
             break;
         }
-        case TOKEN_PLUS:
+        case TOKEN_PLUS: {
+            double r;
+            if (tryFoldBinary(operatorType, lhsConstMark, &r)) {
+                emitConstant(p, NUMBER_VAL(r));
+                break;
+            }
+            /* fused op errors like OP_ADD when the slot isn't a number:
+               "two numbers or two strings" (rhs is a number, verified) */
+            if (tryFuseLocalConstOp(p, lhsLocalMark, OP_ADD_LOCAL_CONST8)) break;
+            emitByte(p, OP_ADD);
+            break;
+        }
         case TOKEN_STAR:
         case TOKEN_SLASH:
         case TOKEN_PERCENT: {
@@ -497,7 +508,7 @@ static void binary(Parser *p, Compiler *c, bool canAssign) {
                 emitConstant(p, NUMBER_VAL(r));
                 break;
             }
-            emitByte(p, operatorType == TOKEN_PLUS    ? OP_ADD
+            emitByte(p, operatorType == TOKEN_STAR    ? OP_MULTIPLY
                       : operatorType == TOKEN_STAR    ? OP_MULTIPLY
                       : operatorType == TOKEN_SLASH   ? OP_DIVIDE : OP_MODULO);
             break;
