@@ -86,13 +86,18 @@ and appears in the README or the playground.
   compile time so runtime checks only the slot). fib(28): ~12% native,
   ~16% WASM, interleaved A/B.
 
+- **`OP_LESS_JUMP` / `OP_GREATER_JUMP`** — bare comparisons in statement
+  conditions (if/while/for) fuse with their discard-branch; operands pop
+  directly, no bool round-trip. `and`/`or` keep OP_JUMP_IF_FALSE.
+  fib(28): ~6% native, ~4% WASM; leaf calls ~3.5% native (all A/B'd).
+
 ## Next (in order)
 
-1. **Call-path work, remaining** — after the slots-window and sub-fusion
-   wins, fib(28) is ~30 ms native; folding CALL+RETURN (tail calls) or
-   register-window frame setup are what's left. Any candidate must move
-   the fib/leaf benches under interleaved A/B; baseline lives in
-   benchmarks/baseline.json.
+1. **Call-path work, remaining** — after the slots-window, sub-fusion, and
+   compare-branch wins, fib(28) is ~28 ms native; folding CALL+RETURN
+   (tail calls) or register-window frame setup are what's left. Any
+   candidate must move the fib/leaf benches under interleaved A/B;
+   baseline lives in benchmarks/baseline.json.
 
 (Measured and rejected: a monomorphic callee cache for OP_CALL sharing the
 chunk IC array — both natives' `callValue` type switch and wasm's br_table
