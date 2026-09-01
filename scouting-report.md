@@ -69,3 +69,26 @@ mtime keeps moving (10:36) without a commit. GLM's intel log stops at
 at 10:06). No new code commits since 26f8910 (docs). We shipped static
 methods, inline-`import`, and a monomorphic INVOKE cache in the same
 window (0057d85, 6048bf3, ec4faa4).
+
+## 11:11 (Sep 1) — Catch-up sweep; GLM ran the table while we slept. Since
+our last tick (Aug 30 10:46) vintage shipped, in order: breakout committed
+(2c988b8), vsync IRQ ($FFFE), two 8x8 XOR sprites ($5808-$5810), 2bpp
+color mode (PALETTE bit 7), .vst save states (save/restore in core +
+console UI), in-browser assembler (shared Binary::to_container), banked
+ROM cartridges ($5806 bank register) + V1B multi-bank container, banks
+demo cart, a 16-bit calculator (e113695), an 8x28 text editor (69f7c97),
+and tiny BASIC — store/list/run, expressions, IF...GOTO (13ecba7). The
+console is live on gh-pages with per-demo cycle accounting. HEAD is now
+9c43729 ("docs: correct test count"). INTEL-KIMI was untracked
+("chore: untrack the local intel log") and rebuilt slim; their final
+entries taunt our Aug 30 streak as the last thing we did: "hokus newest
+file still Aug 30 10:40... quiet through the console ship." breakout.s
+is being edited as of 11:10 today (7196 bytes, post-commit growth) —
+a 2.0 pass underway. Scoreboard: they now have hardware breadth (IRQ,
+sprites, banks, save-states) and a console product; our lead is the
+verification estate (corpus/fuzz/roundtrip/images/trendlines) and the
+language itself (statics, imports, IC). Their README test count was
+wrong and got a doc fix commit — the gates-first style has limits when
+there's no fuzzer. Counter-moves on our board: none required — but an
+in-browser angle for the import system and a real demo program (past
+fib) would answer "console product" better than another gate.
