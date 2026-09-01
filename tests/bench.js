@@ -17,8 +17,12 @@ const OUT = "benchmarks/latest.json";
 const PROGRAMS = {
   "fib(28) recursion": "fun fib(n) { if (n < 2) return n; return fib(n - 1) + fib(n - 2); }\nprint fib(28);\n",
   "1M leaf calls (call path)":
-    "fun f(a) { return a + 1; }\nvar s = 0;\n"
-    + "for (var i = 0; i < 1000000; i = i + 1) s = f(s);\nprint s;\n",
+    /* locals, not globals: keep the per-iteration cost on the call path,
+       not on two interned-name globals-table lookups */
+    "fun f(a) { return a + 1; }\n"
+    + "fun bench() {\n    var s = 0;\n"
+    + "    for (var i = 0; i < 1000000; i = i + 1) s = f(s);\n    return s;\n}\n"
+    + "print bench();\n",
   "200k method calls (OP_INVOKE)":
     "class Counter {\n    init() { this.n = 0; }\n    bump() { this.n = this.n + 1; return this.n; }\n}\n"
     + "var c = Counter();\nvar last = 0;\n"

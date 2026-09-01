@@ -255,6 +255,20 @@ static void closeUpvalues(VM *vm, Value *last) {
    INTERPRET_PAUSED leaves VM state intact for a later vmRunSlice call */
 static InterpretResult run(VM *vm, int budget) {
     CallFrame *frame = &vm->frames[vm->frameCount - 1];
+#ifdef HK_WASM
+    /* cached frame->slots measured slower under wasm32 codegen (extra local
+       pressure around the dispatch loop) — the freestanding build reads the
+       frame field directly and the refresh sites compile to nothing */
+#define FRAME_SLOTS (frame->slots)
+#define REFRESH_SLOTS() ((void)0)
+#else
+    /* cached frame->slots: refreshed only where `frame` can change (every
+       successful call branch jumps to `called`, and OP_RETURN) — interleaved
+       A/B: ~2% on fib(30), ~26% on the 1M leaf-call bench, native x86-64 */
+    Value *slots = frame->slots;
+#define FRAME_SLOTS (slots)
+#define REFRESH_SLOTS() (slots = frame->slots)
+#endif
 
 #define READ_BYTE() (*frame->ip++)
 #define READ_SHORT() (frame->ip += 2, (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]))
@@ -341,10 +355,10 @@ static InterpretResult run(VM *vm, int budget) {
                 continue;
             }
             op_OP_GET_LOCAL:
-                push(vm, frame->slots[READ_BYTE()]);
+                push(vm, FRAME_SLOTS[READ_BYTE()]);
                 continue;
             op_OP_SET_LOCAL:
-                frame->slots[READ_BYTE()] = peek(vm, 0);
+                FRAME_SLOTS[READ_BYTE()] = peek(vm, 0);
                 continue;
             op_OP_GET_UPVALUE: {
                 uint8_t slot = READ_BYTE();
@@ -433,7 +447,7 @@ static InterpretResult run(VM *vm, int budget) {
                 if (!callValue(vm, argCount, &frame)) {
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                continue;
+                goto called;
             }
             op_OP_INVOKE: {
                 /* opcode offset identifies this call site for the IC */
@@ -452,7 +466,7 @@ static InterpretResult run(VM *vm, int budget) {
                         if (!callClosure(vm, ic->method, argCount, &frame)) {
                             return INTERPRET_RUNTIME_ERROR;
                         }
-                        continue;
+                        goto called;
                     }
                     Value *method;
                     if (tableGet(klass->statics, name, &method)) {
@@ -466,12 +480,12 @@ static InterpretResult run(VM *vm, int budget) {
                                 &frame)) {
                             return INTERPRET_RUNTIME_ERROR;
                         }
-                        continue;
+                        goto called;
                     }
                     if (!invoke(vm, name, argCount, &frame)) {
                         return INTERPRET_RUNTIME_ERROR;
                     }
-                    continue;
+                    goto called;
                 }
                 if (IS_INSTANCE(receiver)) {
                     ObjInstance *instance = AS_INSTANCE(receiver);
@@ -488,7 +502,7 @@ static InterpretResult run(VM *vm, int budget) {
                         if (!callClosure(vm, ic->method, argCount, &frame)) {
                             return INTERPRET_RUNTIME_ERROR;
                         }
-                        continue;
+                        goto called;
                     }
                     if (!shadowed) {
                         Value *method;
@@ -500,14 +514,14 @@ static InterpretResult run(VM *vm, int budget) {
                                     &frame)) {
                                 return INTERPRET_RUNTIME_ERROR;
                             }
-                            continue;
+                            goto called;
                         }
                     }
                 }
                 if (!invoke(vm, name, argCount, &frame)) {
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                continue;
+                goto called;
             }
             op_OP_SUPER_INVOKE: {
                 ObjString *name = READ_STRING();
@@ -528,7 +542,7 @@ static InterpretResult run(VM *vm, int budget) {
                 if (!callClosure(vm, AS_CLOSURE(*method), argCount, &frame)) {
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                continue;
+                goto called;
             }
             op_OP_CLASS: {
                 push(vm, OBJ_VAL(newClass(READ_STRING())));
@@ -640,8 +654,12 @@ static InterpretResult run(VM *vm, int budget) {
                 vm->stackTop = frame->slots;
                 push(vm, result);
                 frame = &vm->frames[vm->frameCount - 1];
+                REFRESH_SLOTS();
                 continue;
             }
+        /* shared point for call branches: refresh the slots window */
+        called: REFRESH_SLOTS();
+            continue;
         if (vm->hadRuntimeError) return INTERPRET_RUNTIME_ERROR;
     }
 
