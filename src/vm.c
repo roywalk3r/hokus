@@ -320,6 +320,7 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_ADD_LOCAL_CONST8_SET, &&op_OP_RETURN_LOCAL,
         &&op_OP_LESS_LOCAL_CONST8_JUMP, &&op_OP_ADD_LOCAL_CONST8,
         &&op_OP_ADD_LOCAL_CONST8_SET_LOOP,
+        &&op_OP_ADD_LOCAL_CONST8_RETURN,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
@@ -781,6 +782,20 @@ static InterpretResult run(VM *vm, int budget) {
                 frame = &vm->frames[vm->frameCount - 1];
                 REFRESH_SLOTS();
                 continue;
+            }
+            /* fused ADD_LOCAL_CONST8; RETURN — compute, then share the
+               exact return epilogue via the OP_RETURN label */
+            op_OP_ADD_LOCAL_CONST8_RETURN: {
+                uint8_t slot = READ_BYTE();
+                Value b = frame->closure->function->chunk->constants.values[
+                    READ_BYTE()];
+                Value a = FRAME_SLOTS[slot];
+                if (!IS_NUMBER(a)) { /* rhs compile-time numeric, as OP_ADD */
+                    runtimeError(vm, "Operands must be two numbers or two strings.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                push(vm, NUMBER_VAL(AS_NUMBER(a) + AS_NUMBER(b)));
+                goto op_OP_RETURN;
             }
         /* shared point for call branches: refresh the slots window */
         called: REFRESH_SLOTS();

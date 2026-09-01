@@ -243,6 +243,8 @@ int disassembleInstruction(Chunk *chunk, int offset) {
             return localConst8Instruction("OP_SUB_LOCAL_CONST8", chunk, offset);
         case OP_ADD_LOCAL_CONST8:
             return localConst8Instruction("OP_ADD_LOCAL_CONST8", chunk, offset);
+        case OP_ADD_LOCAL_CONST8_RETURN:
+            return localConst8Instruction("OP_ADD_LOCAL_CONST8_RETURN", chunk, offset);
         case OP_NIL:           return simpleInstruction("OP_NIL", offset);
         case OP_TRUE:          return simpleInstruction("OP_TRUE", offset);
         case OP_FALSE:         return simpleInstruction("OP_FALSE", offset);

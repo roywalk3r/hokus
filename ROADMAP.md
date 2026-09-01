@@ -127,6 +127,15 @@ and appears in the README or the playground.
   mark + bytes + adjacency verified, and/or guard as with all rewinds.
   Leaf: ~6% native, ~3% WASM; fib flat (interleaved A/B, best-of).
 
+- **`OP_ADD_LOCAL_CONST8_RETURN`** — `return local + const;` (leaf-callee
+  `return a + 1` shapes) as one op; the VM computes, pushes, and shares the
+  OP_RETURN epilogue via a computed-goto `goto`. Rewind 3 + emit 3 is
+  length-neutral, so no jump-target guard is needed (same accident that
+  makes OP_RETURN_LOCAL guard-free). Leaf: ~2.7% native, ~4% WASM;
+  wasm fib flat; native fib reads ~+1.7% — verified pure jump-table layout
+  (a binary with the op in the table but the fusion disabled, emitting
+  byte-identical fib code, shows the identical +1.7%).
+
 ## Next (in order)
 
 1. **Call-path work, remaining** — after the slots-window, sub-fusion, and

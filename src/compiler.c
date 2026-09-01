@@ -60,6 +60,7 @@ struct Compiler {
     int setStmtStart; /* byte offset of latest SET_LOCAL/GLOBAL, -1 if none */
     int cmpJumpStart; /* byte offset of latest LESS/GREATER op, -1 if none */
     int incSetStart; /* byte offset of latest OP_ADD_LOCAL_CONST8_SET, -1 */
+    int lcOpStart; /* byte offset of latest SUB/ADD_LOCAL_CONST8, -1 */
     /* end-of-operand jump target from and/or: fusions that rewind the chunk
        tail must never cross it (patched jumps still point into the old
        layout — crossing means mid-instruction targets) */
@@ -253,6 +254,7 @@ static void initCompiler(Compiler *compiler, Compiler *enclosing,
     compiler->setStmtStart = -1;
     compiler->cmpJumpStart = -1;
     compiler->incSetStart = -1;
+    compiler->lcOpStart = -1;
     compiler->andOrTarget = -1;
     compiler->function->chunk = compiler->chunk;
     if (name != NULL) compiler->function->name = copyString(name, nameLen);
@@ -479,6 +481,7 @@ static bool tryFuseLocalConstOp(Parser *p, int lhsLocalMark, uint8_t fusedOp) {
     int slot = ch->code[lhsLocalMark + 1];
     ch->count -= 4; /* rewinds code+lines together; nothing can jump into the tail */
     current->numConstStart = -1;
+    current->lcOpStart = ch->count; /* fuse-mark */
     emitByte(p, fusedOp);
     emitByte(p, (uint8_t)slot);
     emitByte(p, (uint8_t)cidx);
@@ -1194,6 +1197,18 @@ static void returnStatement(Parser *p) {
             uint8_t slot = ch->code[lm + 1];
             ch->count -= 2;
             emitBytes(p, OP_RETURN_LOCAL, slot);
+            return;
+        }
+        /* `return local + const;` — ADD_LOCAL_CONST8 at the tail, fused.
+           rewind 3 + emit 3 is length-neutral: no jump target shifts */
+        int om = current->lcOpStart;
+        if (om >= 0 && om == ch->count - 3 &&
+            ch->code[om] == OP_ADD_LOCAL_CONST8) {
+            uint8_t slot = ch->code[om + 1], cidx = ch->code[om + 2];
+            ch->count -= 3;
+            emitByte(p, OP_ADD_LOCAL_CONST8_RETURN);
+            emitByte(p, slot);
+            emitByte(p, cidx);
             return;
         }
         emitByte(p, OP_RETURN);

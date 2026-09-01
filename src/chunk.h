@@ -58,6 +58,7 @@ typedef enum {
     OP_LESS_LOCAL_CONST8_JUMP,
     OP_ADD_LOCAL_CONST8,
     OP_ADD_LOCAL_CONST8_SET_LOOP,
+    OP_ADD_LOCAL_CONST8_RETURN,
 } OpCode;
 
 typedef struct ObjClass ObjClass;
