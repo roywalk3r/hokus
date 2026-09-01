@@ -447,6 +447,14 @@ static InterpretResult run(VM *vm, int budget) {
                         ic->offset = siteOff;
                         ic->klass = klass;
                         ic->method = AS_CLOSURE(*method);
+                        /* call what we just looked up — don't pay invoke()
+                           a second lookup on the fill path */
+                        vm->stackTop[-argCount - 1] = *method;
+                        if (!callClosure(vm, AS_CLOSURE(*method), argCount,
+                                &frame)) {
+                            return INTERPRET_RUNTIME_ERROR;
+                        }
+                        continue;
                     }
                     if (!invoke(vm, name, argCount, &frame)) {
                         return INTERPRET_RUNTIME_ERROR;
@@ -476,6 +484,11 @@ static InterpretResult run(VM *vm, int budget) {
                             ic->offset = siteOff;
                             ic->klass = instance->klass;
                             ic->method = AS_CLOSURE(*method);
+                            if (!callClosure(vm, ic->method, argCount,
+                                    &frame)) {
+                                return INTERPRET_RUNTIME_ERROR;
+                            }
+                            continue;
                         }
                     }
                 }
