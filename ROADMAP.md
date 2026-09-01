@@ -81,6 +81,13 @@ and appears in the README or the playground.
    CALL+RETURN sequences. Any candidate must move the fib bench; baseline
    lives in benchmarks/baseline.json.
 
+(Measured and rejected: a monomorphic callee cache for OP_CALL sharing the
+chunk IC array — both natives' `callValue` type switch and wasm's br_table
+are already cheaper than the cache's site-offset math plus IC loads/stores;
+interleaved A/B put fib ~2% slower native and ~3% slower wasm. The earlier
+non-interleaved "+4% native" reading was machine drift — A/B before keeping
+any call-path candidate.)
+
 (Measured and rejected: a field-offset cache for OP_GET_PROPERTY /
 OP_SET_PROPERTY — interned-name tableGet on a capacity-8 table is already a
 hash-mask plus one probe; the cache's extra site-offset math and validation
