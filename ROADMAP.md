@@ -106,6 +106,12 @@ interleaved A/B put fib ~2% slower native and ~3% slower wasm. The earlier
 non-interleaved "+4% native" reading was machine drift — A/B before keeping
 any call-path candidate.)
 
+(Measured and rejected: a cached-constants window (FRAME_CONSTS, same
+refresh discipline as the slots window). fib(28) gained ~3% native but the
+1M leaf-call bench lost ~2.4% — the extra reload on every call/return costs
+more in call-dominated code than the saved derefs in constant-heavy code.
+Mixed A/B = not a win.)
+
 (Measured and rejected: fusing `local(...)` calls into OP_CALL_LOCAL8 —
 recursion compiles to GET_LOCAL 0 + CALL, so fib hits it 2M times per run,
 but the arg-shift loop and the duplicated callValue site cost more than the
