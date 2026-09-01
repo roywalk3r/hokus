@@ -322,6 +322,7 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_ADD_LOCAL_CONST8_SET_LOOP,
         &&op_OP_ADD_LOCAL_CONST8_RETURN,
         &&op_OP_LESS_LOCAL_CONST8_LOOP,
+        &&op_OP_ADD_LOCAL_CONST8_SET_LESS_LOOP,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
@@ -565,6 +566,26 @@ static InterpretResult run(VM *vm, int budget) {
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 if (AS_NUMBER(a) < AS_NUMBER(b)) frame->ip -= offset;
+                continue;
+            }
+            /* rotated-for bottom, increment fused in: slot += const1, then
+               if (slot < const2) jump back to the body — the unfused
+               ADD_LOCAL_CONST8_SET + LESS_LOCAL_CONST8_LOOP pair, in order */
+            op_OP_ADD_LOCAL_CONST8_SET_LESS_LOOP: {
+                uint8_t slot = READ_BYTE();
+                Value inc = frame->closure->function->chunk->constants.values[
+                    READ_BYTE()];
+                Value lim = frame->closure->function->chunk->constants.values[
+                    READ_BYTE()];
+                uint16_t offset = READ_SHORT();
+                Value a = FRAME_SLOTS[slot];
+                if (!IS_NUMBER(a)) {
+                    runtimeError(vm, "Operands must be numbers.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                double next = AS_NUMBER(a) + AS_NUMBER(inc);
+                FRAME_SLOTS[slot] = NUMBER_VAL(next);
+                if (next < AS_NUMBER(lim)) frame->ip -= offset;
                 continue;
             }
             op_OP_LOOP: {

@@ -155,6 +155,31 @@ static int localConst8LoopInstruction(const char *name, Chunk *chunk, int offset
     return offset + 5;
 }
 
+static int localConst8Const8LoopInstruction(const char *name, Chunk *chunk,
+                                            int offset) {
+    uint8_t slot = chunk->code[offset + 1];
+    uint8_t c1 = chunk->code[offset + 2];
+    uint8_t c2 = chunk->code[offset + 3];
+    uint16_t jump = (uint16_t)((chunk->code[offset + 4] << 8) | chunk->code[offset + 5]);
+    emitPadded(name, 16);
+    emitPadded("", 4);
+    emitInt(slot);
+    emit(" ");
+    emitInt(c1);
+    emit(" ");
+    emitValueBrief(chunk->constants.values[c1]);
+    emit(" ");
+    emitInt(c2);
+    emit(" ");
+    emitValueBrief(chunk->constants.values[c2]);
+    emit(" | ");
+    emitInt(offset);
+    emit(" -> ");
+    emitInt(offset + 6 - jump);
+    emit("\n");
+    return offset + 6;
+}
+
 static int invokeInstruction(const char *name, Chunk *chunk, int offset) {
     uint16_t constant = (uint16_t)((chunk->code[offset + 1] << 8) | chunk->code[offset + 2]);
     uint8_t argCount = chunk->code[offset + 3];
@@ -265,6 +290,9 @@ int disassembleInstruction(Chunk *chunk, int offset) {
             return localConst8LoopInstruction("OP_ADD_LOCAL_CONST8_SET_LOOP", chunk, offset);
         case OP_LESS_LOCAL_CONST8_LOOP:
             return localConst8LoopInstruction("OP_LESS_LOCAL_CONST8_LOOP", chunk, offset);
+        case OP_ADD_LOCAL_CONST8_SET_LESS_LOOP:
+            return localConst8Const8LoopInstruction("OP_ADD_LOCAL_CONST8_SET_LESS_LOOP",
+                                                    chunk, offset);
         case OP_GET_UPVALUE:   return byteInstruction("OP_GET_UPVALUE", chunk, offset);
         case OP_SET_UPVALUE:   return byteInstruction("OP_SET_UPVALUE", chunk, offset);
         case OP_CLOSE_UPVALUE: return simpleInstruction("OP_CLOSE_UPVALUE", offset);

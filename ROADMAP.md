@@ -146,6 +146,14 @@ and appears in the README or the playground.
   loopStart) is the whole precondition. Leaf: ~11% native, ~11% WASM
   (interleaved A/B); fib flat.
 
+- **`OP_ADD_LOCAL_CONST8_SET_LESS_LOOP`** — mega-fuse of the rotated
+  for-loop tail: when the increment is already `OP_ADD_LOCAL_CONST8_SET` on
+  the condition's slot, the entry `LC8J` doubles as the exit check, the
+  `OP_JUMP` over the increment is dropped, and the bottom becomes one
+  6-byte op (slot += k; if slot < N loop). Length-neutral rewrite (3-byte
+  JUMP + 3-byte increment → 6-byte op). Leaf: ~7% native, ~9% WASM
+  (interleaved A/B, two sessions each); fib flat both hosts.
+
 ## Next (in order)
 
 1. **Call-path work, remaining** — after the slots-window, sub-fusion, and

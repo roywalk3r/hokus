@@ -1144,6 +1144,31 @@ static void rotateForLoop(Parser *p, int c0, int incStart, int incEnd) {
     int lenI = incEnd - incStart;
     int e = ch->count;
     int lenD = e - incEnd;
+    /* increment already fused (i = i + k) on the condition's slot: keep the
+       entry LC8J as the exit check, drop the OP_JUMP over the increment,
+       and emit one inc+test+loop op at the bottom. Length-neutral: the
+       3-byte JUMP and 3-byte increment are replaced by the 6-byte mega op */
+    if (lenI == 3 && ch->code[incStart] == OP_ADD_LOCAL_CONST8_SET &&
+        ch->code[incStart + 1] == cslot && lenD + 6 <= UINT16_MAX) {
+        uint8_t icidx = ch->code[incStart + 2];
+        for (int i = 0; i < lenD; i++) {
+            ch->code[c0 + 5 + i] = ch->code[incEnd + i];
+            ch->lines[c0 + 5 + i] = ch->lines[incEnd + i];
+        }
+        int jump = lenD + 6; /* forward exit, from after the entry LC8J */
+        ch->code[c0 + 3] = (jump >> 8) & 0xff;
+        ch->code[c0 + 4] = jump & 0xff;
+        ch->count = e - 6;
+        emitByte(p, OP_ADD_LOCAL_CONST8_SET_LESS_LOOP);
+        emitByte(p, cslot);
+        emitByte(p, icidx);
+        emitByte(p, ccidx);
+        int off = ch->count - (c0 + 5) + 2; /* emitLoop convention */
+        if (off > UINT16_MAX) error(p, "Loop body too large.");
+        emitByte(p, (off >> 8) & 0xff);
+        emitByte(p, off & 0xff);
+        return;
+    }
     uint8_t *tmp = HK_REALLOC(NULL, 0, lenI);
     int *tmpLines = HK_REALLOC(NULL, 0, lenI * (int)sizeof(int));
     for (int i = 0; i < lenI; i++) {
