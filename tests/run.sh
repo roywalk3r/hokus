@@ -30,7 +30,8 @@ for f in tests/golden_errors/*.err.hk; do
     code=$?
     expected="$f.expected"
     if [ -f "$expected" ]; then
-        if [ $code -eq 70 ] && diff -q "$expected" /tmp/hokus_out >/dev/null; then
+        # 70 = runtime error, 65 = compile error (e.g. the import diagnostics)
+        if { [ $code -eq 70 ] || [ $code -eq 65 ]; } && diff -q "$expected" /tmp/hokus_out >/dev/null; then
             echo "PASS $name"
         else
             echo "FAIL $name (exit $code, trace mismatch)"; diff "$expected" /tmp/hokus_out; fail=1
@@ -64,7 +65,8 @@ if [ -x ./bin/hokus-gcstress ]; then
     for f in tests/golden_errors/*.err.hk; do
         name=$(basename "$f" .err.hk)
         ./bin/hokus-gcstress "$f" > /tmp/hokus_out 2>&1
-        if [ $? -eq 70 ]; then echo "PASS gcstress:$name"; else echo "FAIL gcstress:$name"; fail=1; fi
+        gc_rc=$?
+        if [ $gc_rc -eq 70 ] || [ $gc_rc -eq 65 ]; then echo "PASS gcstress:$name"; else echo "FAIL gcstress:$name"; fail=1; fi
     done
     # GC-sensitive corpus subtrees (upvalues, tables, concat) — benchmark dirs
     # excluded: collect-per-allocate on millions of allocs never terminates.
@@ -109,6 +111,7 @@ done
 for f in tests/golden_errors/*.err.hk; do
     name=$(basename "$f" .err.hk)
     $BIN --emit-image "$f" > /tmp/hokus_img.hki 2>/dev/null
+    if [ $? -ne 0 ]; then continue; fi # compile-error goldens emit no image
     $BIN /tmp/hokus_img.hki > /tmp/hokus_out 2>&1
     if [ $? -eq 70 ] && [ ! -f "$f.expected" ] || diff -q "$f.expected" /tmp/hokus_out >/dev/null 2>&1; then
         :
