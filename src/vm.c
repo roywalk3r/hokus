@@ -625,7 +625,8 @@ static InterpretResult run(VM *vm, int budget) {
             }
             op_OP_RETURN: {
                 Value result = pop(vm);
-                closeUpvalues(vm, frame->slots);
+                /* most functions close nothing — skip the call entirely */
+                if (vm->openUpvalues != NULL) closeUpvalues(vm, frame->slots);
                 vm->frameCount--;
                 if (vm->frameCount == 0) {
                     pop(vm); /* script */
