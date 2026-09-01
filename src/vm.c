@@ -316,6 +316,7 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_INVOKE, &&op_OP_SUPER_INVOKE, &&op_OP_STATIC_METHOD,
         &&op_OP_MODULO, &&op_OP_POP_JUMP_IF_FALSE, &&op_OP_CONSTANT8,
         &&op_OP_SUB_LOCAL_CONST8, &&op_OP_LESS_JUMP, &&op_OP_GREATER_JUMP,
+        &&op_OP_SET_LOCAL_POP, &&op_OP_SET_GLOBAL_POP,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
@@ -361,6 +362,19 @@ static InterpretResult run(VM *vm, int budget) {
             op_OP_SET_LOCAL:
                 FRAME_SLOTS[READ_BYTE()] = peek(vm, 0);
                 continue;
+            op_OP_SET_LOCAL_POP:
+                FRAME_SLOTS[READ_BYTE()] = pop(vm);
+                continue;
+            op_OP_SET_GLOBAL_POP: {
+                ObjString *name = READ_STRING();
+                Value v = pop(vm);
+                if (tableSet(&vm->globals, name, v)) {
+                    tableDelete(&vm->globals, name);
+                    undefinedVarError(vm, name);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                continue;
+            }
             op_OP_GET_UPVALUE: {
                 uint8_t slot = READ_BYTE();
                 push(vm, *frame->closure->upvalues[slot]->location);

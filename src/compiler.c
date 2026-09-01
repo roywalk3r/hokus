@@ -57,6 +57,8 @@ struct Compiler {
     int scopeDepth;
     int numConstStart; /* byte offset of latest OP_CONSTANT push, -1 if none */
     int localGetStart; /* byte offset of latest OP_GET_LOCAL push, -1 if none */
+    int setStmtStart; /* byte offset of latest SET_LOCAL/GLOBAL, -1 if none */
+    int cmpJumpStart; /* byte offset of latest LESS/GREATER op, -1 if none */
 };
 
 typedef struct ClassCompiler {
@@ -220,6 +222,8 @@ static void initCompiler(Compiler *compiler, Compiler *enclosing,
     compiler->scopeDepth = 0;
     compiler->numConstStart = -1;
     compiler->localGetStart = -1;
+    compiler->setStmtStart = -1;
+    compiler->cmpJumpStart = -1;
     compiler->function->chunk = compiler->chunk;
     if (name != NULL) compiler->function->name = copyString(name, nameLen);
     current = compiler;
@@ -461,9 +465,13 @@ static void binary(Parser *p, Compiler *c, bool canAssign) {
     switch (operatorType) {
         case TOKEN_BANG_EQUAL:    emitBytes(p, OP_EQUAL, OP_NOT); break;
         case TOKEN_EQUAL_EQUAL:   emitByte(p, OP_EQUAL); break;
-        case TOKEN_GREATER:       emitByte(p, OP_GREATER); break;
+        case TOKEN_GREATER:
+            current->cmpJumpStart = currentChunk()->count; /* fuse-mark */
+            emitByte(p, OP_GREATER); break;
         case TOKEN_GREATER_EQUAL: emitBytes(p, OP_LESS, OP_NOT); break;
-        case TOKEN_LESS:          emitByte(p, OP_LESS); break;
+        case TOKEN_LESS:
+            current->cmpJumpStart = currentChunk()->count; /* fuse-mark */
+            emitByte(p, OP_LESS); break;
         case TOKEN_LESS_EQUAL:    emitBytes(p, OP_GREATER, OP_NOT); break;
         case TOKEN_MINUS: {
             double r;
@@ -573,8 +581,14 @@ static void namedVariable(Parser *p, Token name, bool canAssign) {
     }
     if (canAssign && matchToken(p, TOKEN_EQUAL)) {
         expression(p);
-        if (setOp == OP_SET_GLOBAL) emitConstRef(p, setOp, arg);
-        else emitBytes(p, setOp, (uint8_t)arg);
+        if (setOp == OP_SET_GLOBAL) {
+            current->setStmtStart = currentChunk()->count; /* fuse-mark */
+            emitConstRef(p, setOp, arg);
+        } else {
+            if (setOp == OP_SET_LOCAL)
+                current->setStmtStart = currentChunk()->count; /* fuse-mark */
+            emitBytes(p, setOp, (uint8_t)arg);
+        }
     } else {
         if (getOp == OP_GET_GLOBAL) emitConstRef(p, getOp, arg);
         else {
@@ -948,10 +962,34 @@ static void varDeclaration(Parser *p) {
     defineVariable(p, global);
 }
 
+/* Discard the expression value. `x = expr` in discard position ends
+   SET_x; POP — fuse: the assigned value is discarded by definition.
+   Tail bytes verified exactly. */
+static void emitExprPop(Parser *p) {
+    Chunk *ch = currentChunk();
+    int n = ch->count;
+    int mark = current->setStmtStart; /* instruction-start mark, not a guess */
+    if (mark >= 0 && mark == n - 2 && ch->code[mark] == OP_SET_LOCAL) {
+        uint8_t slot = ch->code[n - 1];
+        ch->count = n - 2;
+        emitBytes(p, OP_SET_LOCAL_POP, slot);
+        return;
+    }
+    if (mark >= 0 && mark == n - 3 && ch->code[mark] == OP_SET_GLOBAL) {
+        uint8_t hi = ch->code[n - 2], lo = ch->code[n - 1];
+        ch->count = n - 3;
+        emitByte(p, OP_SET_GLOBAL_POP);
+        emitByte(p, hi);
+        emitByte(p, lo);
+        return;
+    }
+    emitByte(p, OP_POP);
+}
+
 static void expressionStatement(Parser *p) {
     expression(p);
     consume(p, TOKEN_SEMICOLON, "Expect ';' after expression.");
-    emitByte(p, OP_POP);
+    emitExprPop(p);
 }
 
 /* Statement-condition jump. If the condition just compiled to a bare
@@ -961,7 +999,10 @@ static void expressionStatement(Parser *p) {
 static int emitCondJump(Parser *p) {
     Chunk *ch = currentChunk();
     int last = ch->count - 1;
-    if (last >= 0 && (ch->code[last] == OP_LESS || ch->code[last] == OP_GREATER)) {
+    /* cmpJumpStart is an instruction-start mark — a bare code[count-1]
+       check would also match operand bytes that alias LESS/GREATER */
+    if (current->cmpJumpStart == last && last >= 0 &&
+        (ch->code[last] == OP_LESS || ch->code[last] == OP_GREATER)) {
         uint8_t fused = ch->code[last] == OP_LESS ? OP_LESS_JUMP
                                                   : OP_GREATER_JUMP;
         ch->count = last; /* rewind 1-byte comparison; code+lines go together */
@@ -1014,7 +1055,7 @@ static void forStatement(Parser *p) {
         int bodyJump = emitJump(p, OP_JUMP);
         int incrementStart = currentChunk()->count;
         expression(p);
-        emitByte(p, OP_POP);
+        emitExprPop(p);
         consume(p, TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
         emitLoop(p, loopStart);
         loopStart = incrementStart;
