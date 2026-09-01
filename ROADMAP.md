@@ -101,6 +101,13 @@ interleaved A/B put fib ~2% slower native and ~3% slower wasm. The earlier
 non-interleaved "+4% native" reading was machine drift — A/B before keeping
 any call-path candidate.)
 
+(Measured and rejected: fusing `local(...)` calls into OP_CALL_LOCAL8 —
+recursion compiles to GET_LOCAL 0 + CALL, so fib hits it 2M times per run,
+but the arg-shift loop and the duplicated callValue site cost more than the
+saved dispatch: interleaved A/B ~7% slower native, ~1% slower wasm. A
+GET_LOCAL followed by a push is already just a dispatch plus an array
+load.)
+
 (Measured and rejected: a field-offset cache for OP_GET_PROPERTY /
 OP_SET_PROPERTY — interned-name tableGet on a capacity-8 table is already a
 hash-mask plus one probe; the cache's extra site-offset math and validation
