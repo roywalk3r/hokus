@@ -97,6 +97,11 @@ and appears in the README or the playground.
   never positional byte guesses — an operand byte can alias an opcode
   (this bit twice). Leaf native ~5%, fib ~2%.
 
+- **`OP_ADD_LOCAL_CONST8_SET`** — slot += numeric constant (for-increments,
+  accumulators) as one op. Leaf: ~11% native, ~12% WASM. (fib WASM reads
+  ~3% slower despite never executing the op — jump-table layout effect,
+  noted in the commit.)
+
 ## Next (in order)
 
 1. **Call-path work, remaining** — after the slots-window, sub-fusion, and
