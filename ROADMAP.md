@@ -66,6 +66,11 @@ and appears in the README or the playground.
   folding and the runtime agree bit-for-bit; `%` by zero is a runtime error
   (unlike `/`, which keeps IEEE inf).
 
+- **`OP_POP_JUMP_IF_FALSE`** — statement-position conditions (`if`/`while`/
+  `for`) compile to one fused branch-and-pop instead of JUMP_IF_FALSE+POP;
+  `and`/`or` keep the old opcode because their short-circuit value must
+  survive the jump. fib(30): ~2% native, ~7% WASM.
+
 ## Next (in order)
 
 1. **Call-path work for fib-class workloads** — `fib(28)` (~1.03M calls,

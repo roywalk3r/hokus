@@ -300,7 +300,7 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_RETURN, &&op_OP_GET_PROPERTY, &&op_OP_SET_PROPERTY,
         &&op_OP_CLASS, &&op_OP_METHOD, &&op_OP_INHERIT, &&op_OP_GET_SUPER,
         &&op_OP_INVOKE, &&op_OP_SUPER_INVOKE, &&op_OP_STATIC_METHOD,
-        &&op_OP_MODULO,
+        &&op_OP_MODULO, &&op_OP_POP_JUMP_IF_FALSE,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
@@ -410,6 +410,12 @@ static InterpretResult run(VM *vm, int budget) {
             op_OP_JUMP_IF_FALSE: {
                 uint16_t offset = READ_SHORT();
                 if (isFalsey(peek(vm, 0))) frame->ip += offset;
+                continue;
+            }
+            /* statement contexts always discard the condition — one op */
+            op_OP_POP_JUMP_IF_FALSE: {
+                uint16_t offset = READ_SHORT();
+                if (isFalsey(pop(vm))) frame->ip += offset;
                 continue;
             }
             op_OP_LOOP: {

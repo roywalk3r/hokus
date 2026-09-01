@@ -60,8 +60,9 @@ and reports `Cannot import module "..."` as a compile error.
 
 Recursive `fib(28)` (~1.03M calls): **~35 ms native**, **~46 ms raw WASM** in Node
 (warm; ~90 ms cold on first instantiation) — dispatch is a computed-goto jump table
-(labels as values) on both hosts, and values are NaN-boxed 64-bit words, so boxing
-a number is a move, not a heap round-trip. A 200k-iteration method-call loop runs
+(labels as values) on both hosts, statement conditions compile to a fused
+`OP_POP_JUMP_IF_FALSE` (branch+pop in one op), and values are NaN-boxed 64-bit
+words, so boxing a number is a move, not a heap round-trip. A 200k-iteration method-call loop runs
 **~20 ms native, ~27 ms WASM** — `OP_INVOKE`/`OP_SUPER_INVOKE` dispatch directly
 without allocating a bound-method object per call (~24% faster than the
 GET_PROPERTY+CALL path). The no-libc WASM build tracks within **~1.3× of native** —

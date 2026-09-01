@@ -42,11 +42,13 @@ const vm = instance.exports;
 function wasmMs(src) {
   const bytes = new TextEncoder().encode(src);
   let best = Infinity;
-  for (let i = 0; i < 3; i++) {
+  // one untimed warm-up: the wasm engine's first runs miss JIT tiers and can
+  // read ~2x slow, which flaked the trendline against a lucky baseline
+  for (let i = -1; i < 5; i++) {
     new Uint8Array(vm.memory.buffer).set(bytes, vm.hk_source_buffer());
     const t0 = performance.now();
     const rc = vm.hk_run(bytes.length);
-    best = Math.min(best, performance.now() - t0);
+    if (i >= 0) best = Math.min(best, performance.now() - t0);
     if (rc !== 0) throw new Error(`wasm run failed rc=${rc}`);
   }
   return best;

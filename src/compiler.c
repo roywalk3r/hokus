@@ -906,12 +906,10 @@ static void ifStatement(Parser *p) {
     consume(p, TOKEN_LEFT_PAREN, "Expect '(' after 'if'.");
     expression(p);
     consume(p, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
-    int thenJump = emitJump(p, OP_JUMP_IF_FALSE);
-    emitByte(p, OP_POP);
+    int thenJump = emitJump(p, OP_POP_JUMP_IF_FALSE);
     statement(p);
     int elseJump = emitJump(p, OP_JUMP);
     patchJump(p, thenJump);
-    emitByte(p, OP_POP);
     if (matchToken(p, TOKEN_ELSE)) statement(p);
     patchJump(p, elseJump);
 }
@@ -921,12 +919,10 @@ static void whileStatement(Parser *p) {
     consume(p, TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
     expression(p);
     consume(p, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
-    int exitJump = emitJump(p, OP_JUMP_IF_FALSE);
-    emitByte(p, OP_POP);
+    int exitJump = emitJump(p, OP_POP_JUMP_IF_FALSE);
     statement(p);
     emitLoop(p, loopStart);
     patchJump(p, exitJump);
-    emitByte(p, OP_POP);
 }
 
 static void forStatement(Parser *p) {
@@ -944,8 +940,7 @@ static void forStatement(Parser *p) {
     if (!matchToken(p, TOKEN_SEMICOLON)) {
         expression(p);
         consume(p, TOKEN_SEMICOLON, "Expect ';' after loop condition.");
-        exitJump = emitJump(p, OP_JUMP_IF_FALSE);
-        emitByte(p, OP_POP);
+        exitJump = emitJump(p, OP_POP_JUMP_IF_FALSE);
     }
     if (!matchToken(p, TOKEN_RIGHT_PAREN)) {
         int bodyJump = emitJump(p, OP_JUMP);
@@ -961,7 +956,6 @@ static void forStatement(Parser *p) {
     emitLoop(p, loopStart);
     if (exitJump != -1) {
         patchJump(p, exitJump);
-        emitByte(p, OP_POP);
     }
     endScope(p);
 }

@@ -19,6 +19,7 @@ const OPS = [
   "OP_CALL", "OP_RETURN", "OP_GET_PROPERTY", "OP_SET_PROPERTY",
   "OP_CLASS", "OP_METHOD", "OP_INHERIT", "OP_GET_SUPER",
   "OP_INVOKE", "OP_SUPER_INVOKE", "OP_STATIC_METHOD", "OP_MODULO",
+  "OP_POP_JUMP_IF_FALSE",
 ];
 const OPC = Object.fromEntries(OPS.map((n, i) => [n, i]));
 const CONST_OPS = new Set(["OP_CONSTANT", "OP_GET_GLOBAL", "OP_DEFINE_GLOBAL",
@@ -26,7 +27,7 @@ const CONST_OPS = new Set(["OP_CONSTANT", "OP_GET_GLOBAL", "OP_DEFINE_GLOBAL",
   "OP_METHOD", "OP_GET_SUPER", "OP_CLOSURE", "OP_STATIC_METHOD"]);
 const BYTE_OPS = new Set(["OP_GET_LOCAL", "OP_SET_LOCAL", "OP_GET_UPVALUE",
   "OP_SET_UPVALUE", "OP_CALL"]);
-const JUMP_FWD = new Set(["OP_JUMP", "OP_JUMP_IF_FALSE"]);
+const JUMP_FWD = new Set(["OP_JUMP", "OP_JUMP_IF_FALSE", "OP_POP_JUMP_IF_FALSE"]);
 const INVOKE_OPS = new Set(["OP_INVOKE", "OP_SUPER_INVOKE"]);
 
 // ---- canonical dump reader (from --emit-bin) ----
