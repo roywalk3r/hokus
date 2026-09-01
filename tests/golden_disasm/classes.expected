@@ -8,17 +8,17 @@
   18    | OP_METHOD           3 "init"
   21    | OP_POP
   22    3 OP_GET_GLOBAL       0 "add"
-  25    | OP_CONSTANT         5 1
-  28    | OP_CONSTANT         6 2
-  31    | OP_CALL             2
-  33    | OP_PRINT
-  34    4 OP_GET_GLOBAL       2 "Pt"
-  37    | OP_CONSTANT         7 9
-  40    | OP_CALL             1
-  42    | OP_GET_PROPERTY     8 "x"
-  45    | OP_PRINT
-  46    5 OP_NIL
-  47    | OP_RETURN
+  25    | OP_CONSTANT8        5 1
+  27    | OP_CONSTANT8        6 2
+  29    | OP_CALL             2
+  31    | OP_PRINT
+  32    4 OP_GET_GLOBAL       2 "Pt"
+  35    | OP_CONSTANT8        7 9
+  37    | OP_CALL             1
+  39    | OP_GET_PROPERTY     8 "x"
+  42    | OP_PRINT
+  43    5 OP_NIL
+  44    | OP_RETURN
 
 == add ==
    0    1 OP_GET_LOCAL        1

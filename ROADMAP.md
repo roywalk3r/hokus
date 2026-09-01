@@ -8,7 +8,9 @@ and appears in the README or the playground.
 ## Shipped
 
 - **Compiler** — Pratt parser, full Lox (closures, classes, inheritance,
-  `super`), 16-bit constant pool, compile-time folding of numeric literals.
+  `super`), 16-bit constant pool with a 2-byte `OP_CONSTANT8` short form for
+  indices < 256 (the folder tracks instruction length by opcode, so folding
+  works across both forms), compile-time folding of numeric literals.
 - **VM** — NaN-boxed values (one 64-bit word per slot), computed-goto
   dispatch, `OP_INVOKE`/`OP_SUPER_INVOKE` fast paths, static methods
   (`class A { static m() {} }` on a dedicated class-side table, inherited,

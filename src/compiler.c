@@ -201,7 +201,9 @@ static void emitConstRef(Parser *p, uint8_t op, int constant) {
 
 static void emitConstant(Parser *p, Value value) {
     current->numConstStart = currentChunk()->count; /* fold-mark: instruction start */
-    emitConstRef(p, OP_CONSTANT, makeConstant(p, value));
+    int k = makeConstant(p, value);
+    if (k <= UINT8_MAX) emitBytes(p, OP_CONSTANT8, k); /* dense short form */
+    else emitConstRef(p, OP_CONSTANT, k);
 }
 
 /* ---- compiler scope management ---- */
@@ -375,22 +377,32 @@ static void defineVariable(Parser *p, int global) {
    two marked pushes sit adjacent at the end of the chunk; chunk->lines runs
    in parallel with ->code, so lowering ->count rewinds both. Adjacency also
    guarantees no jump target can point inside the rewound bytes. */
+/* Instruction length from the folded form's opcode; 0 = not a const push. */
+static int constPushLen(uint8_t op) {
+    return op == OP_CONSTANT ? 3 : op == OP_CONSTANT8 ? 2 : 0;
+}
+
 static double constNumberAt(Chunk *ch, int start) {
-    Value v = ch->constants.values[(ch->code[start + 1] << 8) | ch->code[start + 2]];
+    uint16_t idx = ch->code[start] == OP_CONSTANT8
+        ? ch->code[start + 1]
+        : (uint16_t)((ch->code[start + 1] << 8) | ch->code[start + 2]);
+    Value v = ch->constants.values[idx];
     return IS_NUMBER(v) ? AS_NUMBER(v) : 0.0 / 0.0; /* NaN = not a number */
 }
 
 static bool tryFoldBinary(TokenType op, int lhsStart, double *out) {
     Chunk *ch = currentChunk();
     int rhsStart = current->numConstStart;
-    if (lhsStart < 0 || rhsStart != ch->count - 3 || lhsStart != ch->count - 6)
-        return false;
-    if (ch->code[lhsStart] != OP_CONSTANT || ch->code[rhsStart] != OP_CONSTANT)
+    if (lhsStart < 0 || rhsStart < 0) return false;
+    int ll = constPushLen(ch->code[lhsStart]);
+    int rl = constPushLen(ch->code[rhsStart]);
+    if (ll == 0 || rl == 0) return false;
+    if (rhsStart != ch->count - rl || lhsStart != ch->count - rl - ll)
         return false;
     double a = constNumberAt(ch, lhsStart), b = constNumberAt(ch, rhsStart);
     if (a != a || b != b) return false;
     if (op == TOKEN_PERCENT && b == 0) return false; /* runtime error, not a fold */
-    ch->count -= 6;
+    ch->count -= ll + rl;
     current->numConstStart = -1;
     *out = op == TOKEN_PLUS  ? a + b
          : op == TOKEN_MINUS ? a - b
@@ -402,11 +414,12 @@ static bool tryFoldBinary(TokenType op, int lhsStart, double *out) {
 static bool tryFoldNegate(double *out) {
     Chunk *ch = currentChunk();
     int start = current->numConstStart;
-    if (start < 0 || start != ch->count - 3 || ch->code[start] != OP_CONSTANT)
-        return false;
+    if (start < 0) return false;
+    int len = constPushLen(ch->code[start]);
+    if (len == 0 || start != ch->count - len) return false;
     double a = constNumberAt(ch, start);
     if (a != a) return false;
-    ch->count -= 3;
+    ch->count -= len;
     current->numConstStart = -1;
     *out = -a;
     return true;

@@ -300,12 +300,17 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_RETURN, &&op_OP_GET_PROPERTY, &&op_OP_SET_PROPERTY,
         &&op_OP_CLASS, &&op_OP_METHOD, &&op_OP_INHERIT, &&op_OP_GET_SUPER,
         &&op_OP_INVOKE, &&op_OP_SUPER_INVOKE, &&op_OP_STATIC_METHOD,
-        &&op_OP_MODULO, &&op_OP_POP_JUMP_IF_FALSE,
+        &&op_OP_MODULO, &&op_OP_POP_JUMP_IF_FALSE, &&op_OP_CONSTANT8,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
 
             op_OP_CONSTANT: push(vm, READ_CONSTANT()); continue;
+            op_OP_CONSTANT8: {
+                push(vm, frame->closure->function->chunk->constants.values[
+                    READ_BYTE()]);
+                continue;
+            }
             op_OP_NIL:   push(vm, NIL_VAL); continue;
             op_OP_TRUE:  push(vm, BOOL_VAL(true)); continue;
             op_OP_FALSE: push(vm, BOOL_VAL(false)); continue;

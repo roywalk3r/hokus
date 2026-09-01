@@ -47,6 +47,7 @@ typedef enum {
     OP_STATIC_METHOD,
     OP_MODULO,
     OP_POP_JUMP_IF_FALSE,
+    OP_CONSTANT8,
 } OpCode;
 
 typedef struct ObjClass ObjClass;

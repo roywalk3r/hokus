@@ -19,12 +19,13 @@ const OPS = [
   "OP_CALL", "OP_RETURN", "OP_GET_PROPERTY", "OP_SET_PROPERTY",
   "OP_CLASS", "OP_METHOD", "OP_INHERIT", "OP_GET_SUPER",
   "OP_INVOKE", "OP_SUPER_INVOKE", "OP_STATIC_METHOD", "OP_MODULO",
-  "OP_POP_JUMP_IF_FALSE",
+  "OP_POP_JUMP_IF_FALSE", "OP_CONSTANT8",
 ];
 const OPC = Object.fromEntries(OPS.map((n, i) => [n, i]));
 const CONST_OPS = new Set(["OP_CONSTANT", "OP_GET_GLOBAL", "OP_DEFINE_GLOBAL",
   "OP_SET_GLOBAL", "OP_GET_PROPERTY", "OP_SET_PROPERTY", "OP_CLASS",
   "OP_METHOD", "OP_GET_SUPER", "OP_CLOSURE", "OP_STATIC_METHOD"]);
+const CONST8_OPS = new Set(["OP_CONSTANT8"]); /* same operand text, 1-byte index */
 const BYTE_OPS = new Set(["OP_GET_LOCAL", "OP_SET_LOCAL", "OP_GET_UPVALUE",
   "OP_SET_UPVALUE", "OP_CALL"]);
 const JUMP_FWD = new Set(["OP_JUMP", "OP_JUMP_IF_FALSE", "OP_POP_JUMP_IF_FALSE"]);
@@ -95,7 +96,7 @@ function assemble(listing) {
       const [, op, operand] = rest;
       if (!(op in OPC)) throw new Error("unknown opcode: " + op);
       code.push(OPC[op]);
-      if (CONST_OPS.has(op)) {
+      if (CONST_OPS.has(op) || CONST8_OPS.has(op)) {
         const c = operand.match(/^(\d+) (.*)$/);
         const idx = Number(c[1]);
         const val = parseValue(c[2]);
@@ -106,7 +107,8 @@ function assemble(listing) {
         } else {
           consts[idx] = val;
         }
-        code.push(idx >> 8, idx & 0xff);
+        if (CONST8_OPS.has(op)) code.push(idx & 0xff);
+        else code.push(idx >> 8, idx & 0xff);
         if (op === "OP_CLOSURE") {
           // upvalue rows follow: 2 bytes each
           while (r + 1 < sec.rows.length &&
