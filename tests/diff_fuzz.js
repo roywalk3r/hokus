@@ -284,6 +284,64 @@ for (let round = 0; round < ERROR_ROUNDS; round++) {
     }
   }
 }
-console.log(`diff fuzz: ${ROUNDS} rounds + ${ERROR_ROUNDS} error rounds, ${mismatches} mismatches`);
+// Module rounds: main imports a generated module by its absolute path —
+// native resolves through the filesystem, wasm through the preloaded arena
+// (raw string, exact match); a quarter of rounds import an unregistered
+// path to also diff the "Cannot import module" compile error byte-for-byte.
+function genModule(rnd, tag) {
+  const int = (n) => Math.floor(rnd() * n);
+  const ops = ["+", "-", "*"];
+  const expr = (d) => (d <= 0 || rnd() < 0.4)
+    ? String(int(1000))
+    : `(${expr(d - 1)} ${ops[int(3)]} (${int(9) + 1}))`;
+  return `var m_g${tag} = ${expr(2)};\n` +
+    `fun m_f${tag}(a0) { var r = a0 * (${int(9) + 1}) + ${int(100)}; return r ${ops[int(3)]} m_g${tag}; }\n`;
+}
+
+const addMod = (name, src) => {
+  const enc = new TextEncoder();
+  const nb = enc.encode(name), sb = enc.encode(src);
+  u8().set(nb, vm.hk_module_name_buffer());
+  u8().set(sb, vm.hk_module_src_buffer());
+  return vm.hk_add_module(nb.length, sb.length);
+};
+
+const MODULE_ROUNDS = Math.max(15, ROUNDS / 4 | 0);
+for (let round = 0; round < MODULE_ROUNDS; round++) {
+  const rnd = lcg(round * 30011 + 5);
+  const modName = `/tmp/hkmod_${process.pid}_${round}.hk`;
+  const miss = rnd() < 0.25;
+  const int = (n) => Math.floor(rnd() * n);
+  const modSrc = genModule(rnd, round);
+  const src = `import "${modName}";\nprint m_g${round};\nprint m_f${round}(${int(50)});\n`
+    + (rnd() < 0.6 ? genProgram(rnd) : "");
+  vm.hk_clear_modules();
+  if (!miss) {
+    writeFileSync(modName, modSrc);
+    if (addMod(modName, modSrc) !== 0) {
+      mismatches++;
+      console.log(`MISMATCH module-round ${round}: arena add failed`);
+    }
+  }
+  let nat;
+  const tmp = `/tmp/hokus_diff_fuzz_${process.pid}.hk`;
+  writeFileSync(tmp, src);
+  try {
+    nat = { code: 0, out: execFileSync(native, [tmp], { encoding: "utf8" }) };
+  } catch (e) {
+    nat = { code: e.status ?? -1, out: (e.stdout ?? "") + (e.stderr ?? "") };
+  }
+  const was = wasmRun(src);
+  if (norm(nat.code) !== was.code || nat.out !== was.out) {
+    mismatches++;
+    if (mismatches <= 3) {
+      console.log(`MISMATCH module-round ${round}${miss ? " (miss)" : ""}: native(${nat.code}) vs wasm(${was.code})`);
+      console.log("--- native ---\n" + nat.out.slice(0, 300));
+      console.log("--- wasm ---\n" + was.out.slice(0, 300));
+    }
+  }
+  try { unlinkSync(modName); } catch {}
+}
+console.log(`diff fuzz: ${ROUNDS} rounds + ${ERROR_ROUNDS} error rounds + ${MODULE_ROUNDS} module rounds, ${mismatches} mismatches`);
 unlinkSync(`/tmp/hokus_diff_fuzz_${process.pid}.hk`);
 process.exit(mismatches ? 1 : 0);
