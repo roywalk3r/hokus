@@ -205,6 +205,16 @@ and appears in the README or the playground.
   (`1M while+calls`): −4.8% native, −5.7%/−4.5% WASM across two
   interleaved sessions; fib/leaf/mega-while controls flat.
 
+- **While-mega past scope-close POPs** — a body-scoped `var` leaves
+  `OP_POP`(s) between the trailing increment and the loop end, which used
+  to miss the mega guard and fall back to rotation (one extra dispatch per
+  iteration). The increment commutes with the POP run (different slots,
+  nothing allocates between; jump targets never land inside a single-byte
+  POP run, so a 3-byte slide is distance-preserving), so the compiler now
+  slides the inc past the POPs and applies the mega fuse on top. New bench
+  (`1M while scoped-var`): −4.3%/−5.0% native, −8.4%/−9.5% WASM across two
+  interleaved sessions; while/while+calls/fib controls flat both hosts.
+
 ## Next (in order)
 
 1. **Call-path work, remaining** — after the slots-window, sub-fusion, and

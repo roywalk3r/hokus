@@ -1160,6 +1160,29 @@ static void whileStatement(Parser *p) {
        condition's slot: the entry LC8J is already the exit check, so drop
        the trailing increment and replace OP_LOOP with the 6-byte mega op.
        Net +3 bytes, and patchJump lands on the same address either way */
+    /* scope-close OP_POPs may sit between the trailing increment and the
+       end of the body (body-scoped var). They commute with the increment
+       (different slots, nothing allocates between), so slide the inc past
+       the POP run before testing for the mega shape. */
+    int k = 0;
+    while (e - 1 - k > loopStart + 5 && ch->code[e - 1 - k] == OP_POP) k++;
+    if (k > 0 && e - 3 - k >= loopStart + 5 &&
+        ch->code[e - 3 - k] == OP_ADD_LOCAL_CONST8_SET &&
+        current->andOrTarget <= e - 3 - k) {
+        int inc = e - 3 - k;
+        uint8_t b0 = ch->code[inc], b1 = ch->code[inc + 1], b2 = ch->code[inc + 2];
+        int l0 = ch->lines[inc];
+        for (int j = 0; j < k; j++) {
+            ch->code[inc + j] = ch->code[inc + 3 + j];
+            ch->lines[inc + j] = ch->lines[inc + 3 + j];
+        }
+        ch->code[inc + k] = b0;
+        ch->code[inc + k + 1] = b1;
+        ch->code[inc + k + 2] = b2;
+        ch->lines[inc + k] = l0;
+        ch->lines[inc + k + 1] = l0;
+        ch->lines[inc + k + 2] = l0;
+    }
     if (exitJump >= 3 && exitJump - 3 == loopStart &&
         ch->code[loopStart] == OP_LESS_LOCAL_CONST8_JUMP &&
         e - loopStart - 5 >= 3 &&
