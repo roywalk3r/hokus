@@ -240,6 +240,19 @@ Harness note: whole-process /usr/bin/time at 10 ms resolution read this as
 "flat 30/30" when in-language clock() showed +6% — A/B native runs must use
 the clock() wrap, not wall-clock process timing.)
 
+(Measured and rejected: OP_GET_GLOBAL_PROPERTY — the global-receiver sibling
+of the OP_GET_LOCAL_PROPERTY win (`a = p.x` with p a global: GET_GLOBAL +
+GET_PROPERTY adjacent, fused at emission, no slide, no order change). Two
+interleaved A/B sessions agreed: the target get/set-churn microbench gained
+≤1% native but *lost* ~1-1.5% WASM, and invoke/leaf — which never execute
+the op — read ~+1-4% slower on both hosts across sessions. A global load's
+hash-mask probe is short enough that saving one dispatch doesn't cover the
+br_table/dispatch-loop size tax on wasm, and the non-executing regressions
+are consistent (not single-session drift), so even the layout-attribution
+precedent can't save it — the target bench itself doesn't win. Reverted;
+the sibling INVOKE variant is skipped by design (it would need the rejected
+CALL_GLOBAL en-bloc slide).)
+
 (Module namespaces are parked: true namespacing needs per-module
 environments for functions that reference module globals — include
 semantics is the shipped model.)
