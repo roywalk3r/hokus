@@ -29,6 +29,7 @@ const OPS = [
   "OP_GET_LOCAL_PROPERTY", "OP_SET_PROPERTY_POP",
   "OP_ADD_LOCAL_LOCAL", "OP_ADD_LOCAL_LOCAL_SET",
   "OP_MUL_LOCAL_CONST8", "OP_MUL_LOCAL_CONST8_SET",
+  "OP_ADD_LOCAL_PROPERTY_CONST8_SET",
 ];
 const OPC = Object.fromEntries(OPS.map((n, i) => [n, i]));
 const CONST_OPS = new Set(["OP_CONSTANT", "OP_GET_GLOBAL", "OP_DEFINE_GLOBAL",
@@ -51,6 +52,8 @@ const LC8L2_OPS = new Set(["OP_ADD_LOCAL_CONST8_SET_LESS_LOOP"]);
   /* slot + inc const + cond const + back jump */
 const LOC2_OPS = new Set(["OP_ADD_LOCAL_LOCAL"]);       /* slot + slot */
 const LOC3_OPS = new Set(["OP_ADD_LOCAL_LOCAL_SET", "OP_MUL_LOCAL_CONST8_SET"]);   /* dst + src + src */
+const LOCAL_PROP_C8_OPS = new Set(["OP_ADD_LOCAL_PROPERTY_CONST8_SET"]);
+  /* slot + 2-byte name const + 1-byte add const */
 const INVOKE_OPS = new Set(["OP_INVOKE", "OP_SUPER_INVOKE"]);
 
 // ---- canonical dump reader (from --emit-bin) ----
@@ -167,6 +170,13 @@ function assemble(listing) {
       } else if (LOC3_OPS.has(op)) {
         const c = operand.match(/^(\d+) (\d+) (\d+)$/);
         code.push(Number(c[1]), Number(c[2]), Number(c[3]));
+      } else if (LOCAL_PROP_C8_OPS.has(op)) {
+        const c = operand.match(/^(\d+) (\d+) (.*) (\d+) (.*)$/);
+        const nidx = Number(c[2]), cidx = Number(c[4]);
+        needConst(nidx); needConst(cidx);
+        consts[nidx] = parseValue(c[3]);
+        consts[cidx] = parseValue(c[5]);
+        code.push(Number(c[1]), nidx >> 8, nidx & 0xff, cidx);
       } else if (LOCAL_PROP_OPS.has(op)) {
         const c = operand.match(/^(\d+) (\d+) (.*)$/);
         const idx = Number(c[2]);

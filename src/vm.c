@@ -360,6 +360,7 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_ADD_LOCAL_LOCAL_SET,
         &&op_OP_MUL_LOCAL_CONST8,
         &&op_OP_MUL_LOCAL_CONST8_SET,
+        &&op_OP_ADD_LOCAL_PROPERTY_CONST8_SET,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
@@ -871,6 +872,31 @@ static InterpretResult run(VM *vm, int budget) {
                 ObjString *name = READ_STRING();
                 push(vm, FRAME_SLOTS[slot]);
                 if (!doGetProperty(vm, name)) return INTERPRET_RUNTIME_ERROR;
+                continue;
+            }
+            /* `recv.name = recv.name + k` (recv a local): the read routes
+               through doGetProperty so statics/method-binding/missing-field
+               error paths stay identical to the byte chain; the hot path is
+               the instance-field hit + numeric add + store */
+            op_OP_ADD_LOCAL_PROPERTY_CONST8_SET: {
+                uint8_t slot = READ_BYTE();
+                ObjString *name = READ_STRING();
+                Value recv = FRAME_SLOTS[slot];
+                double k = AS_NUMBER(frame->consts[READ_BYTE()]);
+                push(vm, recv); /* root; doGetProperty replaces it with the value */
+                if (!doGetProperty(vm, name)) return INTERPRET_RUNTIME_ERROR;
+                Value v = peek(vm, 0);
+                if (!IS_NUMBER(v)) {
+                    runtimeError(vm, "Operands must be two numbers or two strings.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                double res = AS_NUMBER(v) + k;
+                pop(vm);
+                if (!IS_INSTANCE(recv)) {
+                    runtimeError(vm, "Only instances have fields.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                tableSet(AS_INSTANCE(recv)->fields, name, NUMBER_VAL(res));
                 continue;
             }
             op_OP_SET_PROPERTY: {

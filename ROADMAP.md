@@ -242,6 +242,27 @@ and appears in the README or the playground.
   jump-table growth again; fib/leaf flat. Third instance of the
   documented layout-attribution precedent.
 
+- **`OP_ADD_LOCAL_PROPERTY_CONST8_SET`** — `r.n = r.n + k` (same local
+  receiver, same property, numeric const — every `this.x = this.x + 1`
+  method-body accumulator) as one 5-byte op. The five-instruction tail
+  (GET_LOCAL recv; GET_LOCAL_PROPERTY; CONSTANT8; ADD; SET_PROPERTY) is
+  verified with two instruction-start marks: the SET_PROPERTY anchor plus
+  a new propSetRecvStart snapshot taken in dot() before the rhs compiles
+  (localGetStart is clobbered by the rhs's own receiver GET_LOCAL/fusion).
+  Non-neutral 12→5 rewind, and/or guard as always. The VM routes the read
+  through doGetProperty and re-checks IS_INSTANCE for the store, so every
+  slow path (class-receiver statics, method binding, "Only instances have
+  fields/properties.", "Undefined property", the ADD type error) is
+  byte-identical to the unfused chain — verified by stash-cycle output
+  diffs across six probe programs. 200k-method-call bench: −9% native
+  (focused best-of-11 interleave: 16.59 → 15.10; full-harness native runs
+  that session read +1.4/+1.8% — drift, confirmed by the focused
+  interleave), −9..15% WASM across two interleaved full sessions and the
+  3-way (invoke wasm 18.43 / 18.68 / 15.95 prev/twin/cur — twin ≈ prev on
+  the target itself, since the twin emits the unfused tail). Controls with
+  byte-identical code (getset/fib/leaf): flat within the layout band both
+  hosts, twin ≈ cur.
+
 ## Next (in order)
 
 1. **Call-path work, remaining** — after the slots-window, sub-fusion, and

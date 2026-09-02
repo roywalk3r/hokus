@@ -59,6 +59,7 @@ struct Compiler {
     int localGetStart; /* byte offset of latest OP_GET_LOCAL push, -1 if none */
     int setStmtStart; /* byte offset of latest SET_LOCAL/GLOBAL, -1 if none */
     int propSetStart; /* byte offset of latest OP_SET_PROPERTY, -1 if none */
+    int propSetRecvStart; /* receiver GET_LOCAL of that property store, -1 */
     int cmpJumpStart; /* byte offset of latest LESS/GREATER op, -1 if none */
     int incSetStart; /* byte offset of latest OP_ADD_LOCAL_CONST8_SET, -1 */
     int lcOpStart; /* byte offset of latest SUB/ADD_LOCAL_CONST8, -1 */
@@ -254,6 +255,7 @@ static void initCompiler(Compiler *compiler, Compiler *enclosing,
     compiler->localGetStart = -1;
     compiler->setStmtStart = -1;
     compiler->propSetStart = -1;
+    compiler->propSetRecvStart = -1;
     compiler->cmpJumpStart = -1;
     compiler->incSetStart = -1;
     compiler->lcOpStart = -1;
@@ -696,6 +698,14 @@ static void dot(Parser *p, Compiler *c, bool canAssign) {
     consume(p, TOKEN_IDENTIFIER, "Expect property name after '.'.");
     int name = identifierConstant(p, &p->previous);
     if (canAssign && matchToken(p, TOKEN_EQUAL)) {
+        /* snapshot the receiver: `p.n = …` with p a local leaves GET_LOCAL
+           as the last instruction before the rhs, but localGetStart gets
+           overwritten while compiling the rhs */
+        Chunk *ch = currentChunk();
+        int lm = current->localGetStart;
+        current->propSetRecvStart =
+            (lm >= 0 && lm == ch->count - 2 && ch->code[lm] == OP_GET_LOCAL)
+                ? lm : -1;
         expression(p);
         current->propSetStart = currentChunk()->count; /* fuse-mark */
         emitConstRef(p, OP_SET_PROPERTY, name);
@@ -1124,8 +1134,30 @@ static void emitExprPop(Parser *p) {
         return;
     }
     int pmark = current->propSetStart;
-    /* rewind 3, emit 3: length-neutral, the span is a single instruction */
     if (pmark >= 0 && pmark == n - 3 && ch->code[pmark] == OP_SET_PROPERTY) {
+        /* `recv.name = recv.name + k` (same local receiver, same property,
+           numeric const): GET_LOCAL; GET_LOCAL_PROPERTY; CONSTANT8; ADD;
+           SET_PROPERTY folds to one 5-byte op. All five spans verified —
+           two from instruction-start marks (recv, const), three geometrically
+           (their ends pin the next mark-verified boundary) */
+        int rm = current->propSetRecvStart, cm = current->numConstStart;
+        if (n >= 12 && rm == n - 12 && cm == n - 6 &&
+            current->andOrTarget <= rm &&
+            ch->code[rm] == OP_GET_LOCAL &&
+            ch->code[n - 10] == OP_GET_LOCAL_PROPERTY &&
+            ch->code[n - 9] == ch->code[rm + 1] && /* same receiver slot */
+            ch->code[n - 8] == ch->code[n - 2] &&  /* same property name */
+            ch->code[n - 7] == ch->code[n - 1] &&
+            ch->code[n - 4] == OP_ADD &&
+            IS_NUMBER(ch->constants.values[ch->code[n - 5]])) {
+            ch->count = n - 12;
+            emitByte(p, OP_ADD_LOCAL_PROPERTY_CONST8_SET);
+            emitByte(p, ch->code[n - 11] /* slot */);
+            emitByte(p, ch->code[n - 8] /* name hi */);
+            emitByte(p, ch->code[n - 7] /* name lo */);
+            emitByte(p, ch->code[n - 5] /* const8 */);
+            return;
+        }
         uint8_t hi = ch->code[n - 2], lo = ch->code[n - 1];
         ch->count = n - 3;
         emitByte(p, OP_SET_PROPERTY_POP);

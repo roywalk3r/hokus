@@ -150,6 +150,25 @@ static int localPropertyInstruction(const char *name, Chunk *chunk, int offset) 
     return offset + 4;
 }
 
+static int localPropertyConst8Instruction(const char *name, Chunk *chunk, int offset) {
+    uint8_t slot = chunk->code[offset + 1];
+    uint16_t constant = (uint16_t)((chunk->code[offset + 2] << 8) | chunk->code[offset + 3]);
+    uint8_t c8 = chunk->code[offset + 4];
+    emitPadded(name, 16);
+    emitPadded("", 4);
+    emitInt(slot);
+    emit(" ");
+    emitInt(constant);
+    emit(" ");
+    emitValueBrief(chunk->constants.values[constant]);
+    emit(" ");
+    emitInt(c8);
+    emit(" ");
+    emitValueBrief(chunk->constants.values[c8]);
+    emit("\n");
+    return offset + 5;
+}
+
 static int localLocalInstruction(const char *name, Chunk *chunk, int offset) {
     emitPadded(name, 16);
     emitPadded("", 4);
@@ -323,6 +342,8 @@ int disassembleInstruction(Chunk *chunk, int offset) {
             return localConst8Instruction("OP_MUL_LOCAL_CONST8", chunk, offset);
         case OP_MUL_LOCAL_CONST8_SET:
             return localLocalSetInstruction("OP_MUL_LOCAL_CONST8_SET", chunk, offset);
+        case OP_ADD_LOCAL_PROPERTY_CONST8_SET:
+            return localPropertyConst8Instruction("OP_ADD_LOCAL_PROPERTY_CONST8_SET", chunk, offset);
         case OP_DEFINE_GLOBAL: return constantInstruction("OP_DEFINE_GLOBAL", chunk, offset);
         case OP_SET_GLOBAL:    return constantInstruction("OP_SET_GLOBAL", chunk, offset);
         case OP_SET_GLOBAL_POP: return constantInstruction("OP_SET_GLOBAL_POP", chunk, offset);
