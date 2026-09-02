@@ -1154,6 +1154,33 @@ static void whileStatement(Parser *p) {
     consume(p, TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
     int exitJump = emitCondJump(p);
     statement(p);
+    Chunk *ch = currentChunk();
+    int e = ch->count;
+    /* while (local < const) body ending in the fused `i = i + k` on the
+       condition's slot: the entry LC8J is already the exit check, so drop
+       the trailing increment and replace OP_LOOP with the 6-byte mega op.
+       Net +3 bytes, and patchJump lands on the same address either way */
+    if (exitJump >= 3 && exitJump - 3 == loopStart &&
+        ch->code[loopStart] == OP_LESS_LOCAL_CONST8_JUMP &&
+        e - loopStart - 5 >= 3 &&
+        ch->code[e - 3] == OP_ADD_LOCAL_CONST8_SET &&
+        ch->code[e - 2] == ch->code[loopStart + 1] &&
+        current->andOrTarget <= e - 3) {
+        uint8_t cslot = ch->code[loopStart + 1];
+        uint8_t ccidx = ch->code[loopStart + 2];
+        uint8_t icidx = ch->code[e - 1];
+        ch->count = e - 3;
+        emitByte(p, OP_ADD_LOCAL_CONST8_SET_LESS_LOOP);
+        emitByte(p, cslot);
+        emitByte(p, icidx);
+        emitByte(p, ccidx);
+        int off = ch->count - (loopStart + 5) + 2; /* emitLoop convention */
+        if (off > UINT16_MAX) error(p, "Loop body too large.");
+        emitByte(p, (off >> 8) & 0xff);
+        emitByte(p, off & 0xff);
+        patchJump(p, exitJump);
+        return;
+    }
     emitLoopBack(p, loopStart);
     patchJump(p, exitJump);
 }

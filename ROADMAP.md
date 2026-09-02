@@ -178,6 +178,21 @@ and appears in the README or the playground.
   shipped build is closer to prev than the twin). The golden_disasm
   `classes` listing picked up the fused forms (single intended diff).
 
+- **While-loop mega-fuse** — `while (local < const)` bodies ending in the
+  fused `i = i + k` on the condition's slot get the same mega op as rotated
+  for-loops, but with no rotation at all: a while loop's natural shape is
+  already `[LC8J exit check][body][increment][back-edge]`, so the transform
+  deletes the 3-byte increment and replaces OP_LOOP with
+  OP_ADD_LOCAL_CONST8_SET_LESS_LOOP (net +3 bytes; patchJump lands on the
+  same exit address either way — jump distances inside the body are
+  untouched). Guard set mirrors the for-mega: mark/bytes/adjacency, slot
+  must equal the condition slot (else plain LOOP), and/or tail-rewind
+  refusal. New bench (`1M while iterations`): −9% native, −15..26% WASM
+  across two interleaved best-of sessions; fib/leaf/invoke controls flat
+  within noise (focused fib-wasm interleave: +1.7%, inside the documented
+  ±3% wasm layout band — the change adds no opcode, the jump table is
+  byte-identical, only the compiler's while arm moves).
+
 ## Next (in order)
 
 1. **Call-path work, remaining** — after the slots-window, sub-fusion, and
