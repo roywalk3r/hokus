@@ -3,6 +3,7 @@
 #include "compiler.h"
 #include "debug.h"
 #include "gc.h"
+#include "table.h"
 
 extern VM *hkActiveVM; /* gc.c gate: collections only mid-execution */
 

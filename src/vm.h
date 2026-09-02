@@ -3,7 +3,6 @@
 #define hokus_vm_h
 
 #include "chunk.h"
-#include "table.h"
 
 #define FRAMES_MAX 64
 #define STACK_MAX (FRAMES_MAX * 256)
