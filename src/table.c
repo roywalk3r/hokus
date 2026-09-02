@@ -14,8 +14,11 @@ void freeTable(Table *table) {
     initTable(table);
 }
 
+/* Capacity is always a power of two (8, then doubling in tableSet), so the
+   probe index masks instead of dividing — a modulo here is an integer
+   division on every global read, field access, and intern lookup. */
 static Entry *findEntry(Entry *entries, int capacity, ObjString *key) {
-    uint32_t index = key->hash % (uint32_t)capacity;
+    uint32_t index = key->hash & (uint32_t)(capacity - 1);
     Entry *tombstone = NULL;
     for (;;) {
         Entry *entry = &entries[index];
@@ -30,7 +33,7 @@ static Entry *findEntry(Entry *entries, int capacity, ObjString *key) {
                     hk_strncmp(entry->key->chars, key->chars, key->length) == 0)) {
             return entry;
         }
-        index = (index + 1) % (uint32_t)capacity;
+        index = (index + 1) & (uint32_t)(capacity - 1);
     }
 }
 
@@ -93,7 +96,7 @@ void tableAddAll(Table *from, Table *to) {
 
 ObjString *tableFindString(Table *table, const char *chars, int length, uint32_t hash) {
     if (table->count == 0) return NULL;
-    uint32_t index = hash % (uint32_t)table->capacity;
+    uint32_t index = hash & (uint32_t)(table->capacity - 1);
     for (;;) {
         Entry *entry = &table->entries[index];
         if (entry->key == NULL) {
@@ -102,7 +105,7 @@ ObjString *tableFindString(Table *table, const char *chars, int length, uint32_t
                    hk_strncmp(entry->key->chars, chars, length) == 0) {
             return entry->key;
         }
-        index = (index + 1) % (uint32_t)table->capacity;
+        index = (index + 1) & (uint32_t)(table->capacity - 1);
     }
 }
 
