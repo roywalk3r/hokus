@@ -1181,6 +1181,35 @@ static void whileStatement(Parser *p) {
         patchJump(p, exitJump);
         return;
     }
+    /* fused condition but a non-increment tail: rotate instead. The entry
+       LC8J (5 bytes) becomes a one-time OP_JUMP (3 bytes) to the bottom
+       check; the body slides left 2 bytes en bloc (internal jump distances
+       preserved); the bottom gets OP_LESS_LOCAL_CONST8_LOOP back to the
+       relocated body. Length-neutral overall (5+3 -> 3+5). exitJump is
+       intentionally NOT patched: its operand bytes now hold body code. */
+    if (exitJump >= 3 && exitJump - 3 == loopStart &&
+        ch->code[loopStart] == OP_LESS_LOCAL_CONST8_JUMP) {
+        int B = e - (loopStart + 5);
+        if (B + 5 > UINT16_MAX) error(p, "Loop body too large.");
+        uint8_t cslot = ch->code[loopStart + 1];
+        uint8_t ccidx = ch->code[loopStart + 2];
+        for (int i = 0; i < B; i++) {
+            ch->code[loopStart + 3 + i] = ch->code[loopStart + 5 + i];
+            ch->lines[loopStart + 3 + i] = ch->lines[loopStart + 5 + i];
+        }
+        ch->code[loopStart] = OP_JUMP;
+        ch->code[loopStart + 1] = (B >> 8) & 0xff;
+        ch->code[loopStart + 2] = B & 0xff;
+        ch->count = loopStart + 3 + B;
+        emitByte(p, OP_LESS_LOCAL_CONST8_LOOP);
+        emitByte(p, cslot);
+        emitByte(p, ccidx);
+        int off = ch->count - (loopStart + 3) + 2; /* emitLoop convention */
+        if (off > UINT16_MAX) error(p, "Loop body too large.");
+        emitByte(p, (off >> 8) & 0xff);
+        emitByte(p, off & 0xff);
+        return;
+    }
     emitLoopBack(p, loopStart);
     patchJump(p, exitJump);
 }

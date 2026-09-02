@@ -27,6 +27,12 @@ const PROGRAMS = {
     "fun bench() {\n    var s = 0;\n    var i = 0;\n"
     + "    while (i < 1000000) { s = s + i; i = i + 1; }\n    return s;\n}\n"
     + "print bench();\n",
+  "1M while+calls (rotated cond)":
+    /* increment first, call last: non-mega tail, exercises the rotation */
+    "fun f(s, i) { return s + i; }\n"
+    + "fun bench() {\n    var s = 0;\n    var i = 0;\n"
+    + "    while (i < 1000000) { i = i + 1; s = f(s, i); }\n    return s;\n}\n"
+    + "print bench();\n",
   "200k method calls (OP_INVOKE)":
     "class Counter {\n    init() { this.n = 0; }\n    bump() { this.n = this.n + 1; return this.n; }\n}\n"
     + "var c = Counter();\nvar last = 0;\n"

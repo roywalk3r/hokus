@@ -193,6 +193,18 @@ and appears in the README or the playground.
   ±3% wasm layout band — the change adds no opcode, the jump table is
   byte-identical, only the compiler's while arm moves).
 
+- **While-loop rotation (non-mega tails)** — `while (local < const)` bodies
+  that don't end in the fused increment rotate the same way for-loops do:
+  the entry `LC8J` (5 bytes) becomes a one-time `OP_JUMP` (3 bytes) to the
+  bottom check, the body slides left 2 bytes en bloc (internal jump
+  distances preserved — the exitJump operand is deliberately NOT patched
+  afterward, since its bytes now hold relocated body code), and the bottom
+  gets `OP_LESS_LOCAL_CONST8_LOOP` back to the body. Length-neutral
+  (5+3 → 3+5). Scoped-local tails (`var` in the body ⇒ trailing `OP_POP`)
+  land here instead of the mega path, which is why both matter. New bench
+  (`1M while+calls`): −4.8% native, −5.7%/−4.5% WASM across two
+  interleaved sessions; fib/leaf/mega-while controls flat.
+
 ## Next (in order)
 
 1. **Call-path work, remaining** — after the slots-window, sub-fusion, and
