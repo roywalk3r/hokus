@@ -385,7 +385,10 @@ static InterpretResult run(VM *vm, int budget) {
             op_OP_POP:   pop(vm); continue;
             op_OP_GET_GLOBAL: {
                 uint16_t slot = READ_SHORT();
-                if (slot >= vm->gslotsCount || IS_EMPTY(vm->gslots[slot])) {
+                /* slot >= hkGlobalCount can only come from a crafted image —
+                   guards the name lookup below, not just the value read */
+                if (slot >= hkGlobalCount || slot >= vm->gslotsCount ||
+                    IS_EMPTY(vm->gslots[slot])) {
                     undefinedVarError(vm, hkGlobalNameList[slot]);
                     return INTERPRET_RUNTIME_ERROR;
                 }
@@ -401,7 +404,8 @@ static InterpretResult run(VM *vm, int budget) {
             }
             op_OP_SET_GLOBAL: {
                 uint16_t slot = READ_SHORT();
-                if (slot >= vm->gslotsCount || IS_EMPTY(vm->gslots[slot])) {
+                if (slot >= hkGlobalCount || slot >= vm->gslotsCount ||
+                    IS_EMPTY(vm->gslots[slot])) {
                     undefinedVarError(vm, hkGlobalNameList[slot]);
                     return INTERPRET_RUNTIME_ERROR;
                 }
@@ -452,7 +456,8 @@ static InterpretResult run(VM *vm, int budget) {
             op_OP_SET_GLOBAL_POP: {
                 uint16_t slot = READ_SHORT();
                 Value v = pop(vm);
-                if (slot >= vm->gslotsCount || IS_EMPTY(vm->gslots[slot])) {
+                if (slot >= hkGlobalCount || slot >= vm->gslotsCount ||
+                    IS_EMPTY(vm->gslots[slot])) {
                     undefinedVarError(vm, hkGlobalNameList[slot]);
                     return INTERPRET_RUNTIME_ERROR;
                 }

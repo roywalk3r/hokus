@@ -258,7 +258,7 @@ static int globalSlotInstruction(const char *name, Chunk *chunk, int offset) {
     emitPadded("", 4);
     emitInt(slot);
     emit(" ");
-    emitValueBrief(OBJ_VAL(hkGlobalNameList[slot]));
+    if (slot < hkGlobalCount) emitValueBrief(OBJ_VAL(hkGlobalNameList[slot]));
     emit("\n");
     return offset + 3;
 }
