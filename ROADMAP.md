@@ -263,6 +263,20 @@ and appears in the README or the playground.
   byte-identical code (getset/fib/leaf): flat within the layout band both
   hosts, twin ≈ cur.
 
+- **`OP_RETURN_LOCAL_PROPERTY`** — `return local.prop;` (the getter idiom:
+  every `return this.n`) as one 4-byte op; doGetProperty leaves the value
+  on the stack top, which is exactly what the shared RETURN epilogue pops
+  (`goto op_OP_RETURN`, same as ADD_LOCAL_CONST8_RETURN). Mark discipline:
+  dot()'s property fusion now records propGetStart — a plain localGetStart
+  anchor is impossible because the fusion rewinds the receiver GET_LOCAL
+  the mark was pointing at. Method-call bench: WASM −3..5% across four
+  interleaved 3-way/full sessions (invoke 16.43/16.25/15.86 and
+  16.00/15.82/15.49 prev/twin/cur — twin ≈ prev confirms the fusion is the
+  delta; one contradicted session self-flagged via twin ≠ prev on
+  byte-identical leaf, a noise tell); native flat (±1% across focused
+  best-of-11/13 interleaves — one saved dispatch is below the native
+  measurement floor at ~80 ns/call), controls flat both hosts.
+
 ## Next (in order)
 
 1. **Call-path work, remaining** — after the slots-window, sub-fusion, and

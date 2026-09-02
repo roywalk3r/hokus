@@ -361,6 +361,7 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_MUL_LOCAL_CONST8,
         &&op_OP_MUL_LOCAL_CONST8_SET,
         &&op_OP_ADD_LOCAL_PROPERTY_CONST8_SET,
+        &&op_OP_RETURN_LOCAL_PROPERTY,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
@@ -973,6 +974,15 @@ static InterpretResult run(VM *vm, int budget) {
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 push(vm, NUMBER_VAL(AS_NUMBER(a) + AS_NUMBER(b)));
+                goto op_OP_RETURN;
+            }
+            /* fused GET_LOCAL_PROPERTY; RETURN — doGetProperty leaves the
+               value on top, which is exactly what the RETURN epilogue pops */
+            op_OP_RETURN_LOCAL_PROPERTY: {
+                uint8_t slot = READ_BYTE();
+                ObjString *name = READ_STRING();
+                push(vm, FRAME_SLOTS[slot]);
+                if (!doGetProperty(vm, name)) return INTERPRET_RUNTIME_ERROR;
                 goto op_OP_RETURN;
             }
         /* shared point for call branches: refresh the slots window */

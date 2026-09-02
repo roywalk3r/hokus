@@ -344,6 +344,8 @@ int disassembleInstruction(Chunk *chunk, int offset) {
             return localLocalSetInstruction("OP_MUL_LOCAL_CONST8_SET", chunk, offset);
         case OP_ADD_LOCAL_PROPERTY_CONST8_SET:
             return localPropertyConst8Instruction("OP_ADD_LOCAL_PROPERTY_CONST8_SET", chunk, offset);
+        case OP_RETURN_LOCAL_PROPERTY:
+            return localPropertyInstruction("OP_RETURN_LOCAL_PROPERTY", chunk, offset);
         case OP_DEFINE_GLOBAL: return constantInstruction("OP_DEFINE_GLOBAL", chunk, offset);
         case OP_SET_GLOBAL:    return constantInstruction("OP_SET_GLOBAL", chunk, offset);
         case OP_SET_GLOBAL_POP: return constantInstruction("OP_SET_GLOBAL_POP", chunk, offset);

@@ -60,6 +60,7 @@ struct Compiler {
     int setStmtStart; /* byte offset of latest SET_LOCAL/GLOBAL, -1 if none */
     int propSetStart; /* byte offset of latest OP_SET_PROPERTY, -1 if none */
     int propSetRecvStart; /* receiver GET_LOCAL of that property store, -1 */
+    int propGetStart; /* byte offset of latest OP_GET_LOCAL_PROPERTY, -1 */
     int cmpJumpStart; /* byte offset of latest LESS/GREATER op, -1 if none */
     int incSetStart; /* byte offset of latest OP_ADD_LOCAL_CONST8_SET, -1 */
     int lcOpStart; /* byte offset of latest SUB/ADD_LOCAL_CONST8, -1 */
@@ -256,6 +257,7 @@ static void initCompiler(Compiler *compiler, Compiler *enclosing,
     compiler->setStmtStart = -1;
     compiler->propSetStart = -1;
     compiler->propSetRecvStart = -1;
+    compiler->propGetStart = -1;
     compiler->cmpJumpStart = -1;
     compiler->incSetStart = -1;
     compiler->lcOpStart = -1;
@@ -730,6 +732,7 @@ static void dot(Parser *p, Compiler *c, bool canAssign) {
             current->andOrTarget <= lm) {
             uint8_t slot = ch->code[lm + 1];
             ch->count = lm;
+            current->propGetStart = lm; /* fuse-mark */
             emitByte(p, OP_GET_LOCAL_PROPERTY);
             emitByte(p, slot);
             emitByte(p, (name >> 8) & 0xff);
@@ -1477,6 +1480,22 @@ static void returnStatement(Parser *p) {
             emitByte(p, OP_ADD_LOCAL_CONST8_RETURN);
             emitByte(p, slot);
             emitByte(p, cidx);
+            return;
+        }
+        /* `return local.prop;` — GET_LOCAL_PROPERTY; RETURN. 4+1 → 4:
+           one dispatch saved, no target can point into a freshly emitted
+           tail (and/or guard as with every rewind) */
+        int gm = current->propGetStart;
+        if (gm >= 0 && gm == ch->count - 4 &&
+            current->andOrTarget <= gm &&
+            ch->code[gm] == OP_GET_LOCAL_PROPERTY) {
+            uint8_t slot = ch->code[gm + 1];
+            uint8_t hi = ch->code[gm + 2], lo = ch->code[gm + 3];
+            ch->count -= 4;
+            emitByte(p, OP_RETURN_LOCAL_PROPERTY);
+            emitByte(p, slot);
+            emitByte(p, hi);
+            emitByte(p, lo);
             return;
         }
         emitByte(p, OP_RETURN);
