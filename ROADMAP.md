@@ -215,6 +215,21 @@ and appears in the README or the playground.
   (`1M while scoped-var`): −4.3%/−5.0% native, −8.4%/−9.5% WASM across two
   interleaved sessions; while/while+calls/fib controls flat both hosts.
 
+- **`OP_ADD_LOCAL_LOCAL` / `OP_ADD_LOCAL_LOCAL_SET`** — `b + c` with both
+  operands locals (expression form, 3 bytes: two adjacent GET_LOCALs at the
+  chunk tail, byte-verified, and/or guard) and `a = b + c;` as one 4-byte
+  statement op (ADD_LOCAL_LOCAL + SET_LOCAL fold in emitExprPop; dst may
+  differ from both sources). String pairs route through the shared
+  concatenate in OP_ADD's own check order (strings first), error text
+  byte-identical. Biggest single win of the fusion series: 1M-iteration
+  while accumulator −51% native / −40% WASM, scoped-var variant −32% /
+  −15% (two interleaved sessions). Controls: fib native flat; fib/leaf
+  WASM read +4-8% but hold byte-identical code — 3-way prev/twin/cur with
+  a fusion-disabled twin (ops in the table, compiler fusion off) shows the
+  twin regresses exactly as much as the shipped build (fib wasm 30.1 /
+  32.3 / 32.2), so this is jump-table growth, not the op bodies. The
+  `classes` disasm golden picked up the fused form (single intended diff).
+
 ## Next (in order)
 
 1. **Call-path work, remaining** — after the slots-window, sub-fusion, and

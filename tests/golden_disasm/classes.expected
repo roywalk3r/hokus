@@ -21,12 +21,10 @@
   44    | OP_RETURN
 
 == add ==
-   0    1 OP_GET_LOCAL        1
-   2    | OP_GET_LOCAL        2
-   4    | OP_ADD
+   0    1 OP_ADD_LOCAL_LOCAL    1 2
+   3    | OP_RETURN
+   4    | OP_NIL
    5    | OP_RETURN
-   6    | OP_NIL
-   7    | OP_RETURN
 
 == init ==
    0    2 OP_GET_LOCAL        0

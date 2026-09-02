@@ -527,6 +527,23 @@ static void binary(Parser *p, Compiler *c, bool canAssign) {
             /* fused op errors like OP_ADD when the slot isn't a number:
                "two numbers or two strings" (rhs is a number, verified) */
             if (tryFuseLocalConstOp(p, lhsLocalMark, OP_ADD_LOCAL_CONST8)) break;
+            /* local + local: tail is GET_LOCAL; GET_LOCAL, byte-verified.
+               Fires on accumulators (s = s + i). */
+            {
+                Chunk *ch = currentChunk();
+                int n = ch->count;
+                if (n >= 4 && current->andOrTarget <= n - 4 &&
+                    ch->code[n - 4] == OP_GET_LOCAL &&
+                    ch->code[n - 2] == OP_GET_LOCAL) {
+                    uint8_t s1 = ch->code[n - 3], s2 = ch->code[n - 1];
+                    ch->count = n - 4;
+                    current->lcOpStart = ch->count; /* fuse-mark */
+                    emitByte(p, OP_ADD_LOCAL_LOCAL);
+                    emitByte(p, s1);
+                    emitByte(p, s2);
+                    break;
+                }
+            }
             emitByte(p, OP_ADD);
             break;
         }
@@ -1061,6 +1078,20 @@ static void emitExprPop(Parser *p) {
             emitByte(p, OP_ADD_LOCAL_CONST8_SET);
             emitByte(p, slot);
             emitByte(p, cidx);
+            return;
+        }
+        /* `a = b + c` statement (dst may differ from either source):
+           ADD_LOCAL_LOCAL; SET_LOCAL folds to one 4-byte op */
+        if (n >= 5 && current->andOrTarget <= n - 5 &&
+            ch->code[n - 5] == OP_ADD_LOCAL_LOCAL) {
+            uint8_t s1 = ch->code[n - 4], s2 = ch->code[n - 3];
+            uint8_t dst = ch->code[n - 1];
+            ch->count = n - 5;
+            current->incSetStart = ch->count; /* fuse-mark */
+            emitByte(p, OP_ADD_LOCAL_LOCAL_SET);
+            emitByte(p, dst);
+            emitByte(p, s1);
+            emitByte(p, s2);
             return;
         }
         uint8_t slot = ch->code[n - 1];

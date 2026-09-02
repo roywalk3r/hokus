@@ -356,6 +356,8 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_ADD_LOCAL_CONST8_SET_LESS_LOOP,
         &&op_OP_GET_LOCAL_PROPERTY,
         &&op_OP_SET_PROPERTY_POP,
+        &&op_OP_ADD_LOCAL_LOCAL,
+        &&op_OP_ADD_LOCAL_LOCAL_SET,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
@@ -516,6 +518,37 @@ static InterpretResult run(VM *vm, int budget) {
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 push(vm, NUMBER_VAL(AS_NUMBER(a) + AS_NUMBER(b)));
+                continue;
+            }
+            /* local + local: operands from frame slots; string pairs go
+               through OP_ADD's own order (strings first, then numbers) via
+               the shared concatenate, error text identical */
+            op_OP_ADD_LOCAL_LOCAL: {
+                Value a = FRAME_SLOTS[READ_BYTE()], b = FRAME_SLOTS[READ_BYTE()];
+                if (IS_STRING(a) && IS_STRING(b)) {
+                    push(vm, a); push(vm, b);
+                    concatenate(vm);
+                } else if (IS_NUMBER(a) && IS_NUMBER(b)) {
+                    push(vm, NUMBER_VAL(AS_NUMBER(a) + AS_NUMBER(b)));
+                } else {
+                    runtimeError(vm, "Operands must be two numbers or two strings.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                continue;
+            }
+            op_OP_ADD_LOCAL_LOCAL_SET: {
+                uint8_t dst = READ_BYTE();
+                Value a = FRAME_SLOTS[READ_BYTE()], b = FRAME_SLOTS[READ_BYTE()];
+                if (IS_STRING(a) && IS_STRING(b)) {
+                    push(vm, a); push(vm, b);
+                    concatenate(vm);
+                    FRAME_SLOTS[dst] = pop(vm);
+                } else if (IS_NUMBER(a) && IS_NUMBER(b)) {
+                    FRAME_SLOTS[dst] = NUMBER_VAL(AS_NUMBER(a) + AS_NUMBER(b));
+                } else {
+                    runtimeError(vm, "Operands must be two numbers or two strings.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
                 continue;
             }
             op_OP_MULTIPLY: BINARY_OP(NUMBER_VAL, *); continue;
