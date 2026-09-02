@@ -168,6 +168,36 @@ static bool bindMethod(VM *vm, ObjClass *klass, ObjString *name) {
     return true;
 }
 
+/* Receiver on the stack top; replaces it with the field value / static /
+   bound method. Shared by OP_GET_PROPERTY and OP_GET_LOCAL_PROPERTY. */
+static bool doGetProperty(VM *vm, ObjString *name) {
+    /* class objects expose their statics as properties */
+    if (IS_CLASS(peek(vm, 0))) {
+        ObjClass *klass = AS_CLASS(peek(vm, 0));
+        Value *method;
+        if (!tableGet(klass->statics, name, &method)) {
+            /* stock-Lox error: corpus asserts this exact message */
+            runtimeError(vm, "Only instances have properties.");
+            return false;
+        }
+        pop(vm);
+        push(vm, *method);
+        return true;
+    }
+    if (!IS_INSTANCE(peek(vm, 0))) {
+        runtimeError(vm, "Only instances have properties.");
+        return false;
+    }
+    ObjInstance *instance = AS_INSTANCE(peek(vm, 0));
+    Value *value;
+    if (tableGet(instance->fields, name, &value)) {
+        pop(vm);
+        push(vm, *value);
+        return true;
+    }
+    return bindMethod(vm, instance->klass, name);
+}
+
 static bool invoke(VM *vm, ObjString *name, int argCount, CallFrame **frameOut) {
     Value receiver = peek(vm, argCount);
     /* A.m(...) — statics are plain functions: slot 0 holds the closure, no this */
@@ -324,6 +354,8 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_ADD_LOCAL_CONST8_RETURN,
         &&op_OP_LESS_LOCAL_CONST8_LOOP,
         &&op_OP_ADD_LOCAL_CONST8_SET_LESS_LOOP,
+        &&op_OP_GET_LOCAL_PROPERTY,
+        &&op_OP_SET_PROPERTY_POP,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
@@ -773,6 +805,16 @@ static InterpretResult run(VM *vm, int budget) {
                 }
                 continue;
             }
+            /* local.field — the GET_LOCAL receiver read fused in; the push
+               keeps the receiver on the stack where doGetProperty (and the
+               GC, under bindMethod's allocation) expects it */
+            op_OP_GET_LOCAL_PROPERTY: {
+                uint8_t slot = READ_BYTE();
+                ObjString *name = READ_STRING();
+                push(vm, FRAME_SLOTS[slot]);
+                if (!doGetProperty(vm, name)) return INTERPRET_RUNTIME_ERROR;
+                continue;
+            }
             op_OP_SET_PROPERTY: {
                 ObjString *name = READ_STRING();
                 if (!IS_INSTANCE(peek(vm, 1))) {
@@ -784,6 +826,20 @@ static InterpretResult run(VM *vm, int budget) {
                 Value value = pop(vm);
                 pop(vm);
                 push(vm, value);
+                continue;
+            }
+            /* statement-position store: identical, minus the value
+               round-trip the discard-POP would remove anyway */
+            op_OP_SET_PROPERTY_POP: {
+                ObjString *name = READ_STRING();
+                if (!IS_INSTANCE(peek(vm, 1))) {
+                    runtimeError(vm, "Only instances have fields.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                ObjInstance *instance = AS_INSTANCE(peek(vm, 1));
+                tableSet(instance->fields, name, peek(vm, 0));
+                pop(vm);
+                pop(vm);
                 continue;
             }
             op_OP_GET_SUPER: {

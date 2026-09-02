@@ -164,6 +164,20 @@ and appears in the README or the playground.
   fib(28): ~8% native both A/B sessions, ~3-6% WASM (5/6 sessions; one
   drift outlier up); leaf flat-to-better (no regression anywhere).
 
+- **`OP_GET_LOCAL_PROPERTY` / `OP_SET_PROPERTY_POP`** — `local.field` reads
+  (`this.n` twice per method call) fuse the GET_LOCAL receiver read into
+  the property op (mark + bytes + adjacency, and/or guard); statement-
+  position stores fuse SET_PROPERTY+POP (length-neutral). An early version
+  that refactored plain OP_GET_PROPERTY through a shared helper cost churn
+  ~3% WASM — the shipped version leaves that op body byte-identical and
+  duplicates the logic in the fused op. Method calls: ~4-6% native, ~7-9%
+  WASM; get/set churn: ~3% native; leaf/field/static flat. fib(28) native
+  reads ~+4% — verified jump-table layout (fib has no property ops, so its
+  bytes are identical in all three binaries: prev 19.43, fusion-disabled
+  twin 21.39, shipped 20.24 — the op-table growth alone moves it; the
+  shipped build is closer to prev than the twin). The golden_disasm
+  `classes` listing picked up the fused forms (single intended diff).
+
 ## Next (in order)
 
 1. **Call-path work, remaining** — after the slots-window, sub-fusion, and

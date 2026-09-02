@@ -58,6 +58,7 @@ struct Compiler {
     int numConstStart; /* byte offset of latest OP_CONSTANT push, -1 if none */
     int localGetStart; /* byte offset of latest OP_GET_LOCAL push, -1 if none */
     int setStmtStart; /* byte offset of latest SET_LOCAL/GLOBAL, -1 if none */
+    int propSetStart; /* byte offset of latest OP_SET_PROPERTY, -1 if none */
     int cmpJumpStart; /* byte offset of latest LESS/GREATER op, -1 if none */
     int incSetStart; /* byte offset of latest OP_ADD_LOCAL_CONST8_SET, -1 */
     int lcOpStart; /* byte offset of latest SUB/ADD_LOCAL_CONST8, -1 */
@@ -252,6 +253,7 @@ static void initCompiler(Compiler *compiler, Compiler *enclosing,
     compiler->numConstStart = -1;
     compiler->localGetStart = -1;
     compiler->setStmtStart = -1;
+    compiler->propSetStart = -1;
     compiler->cmpJumpStart = -1;
     compiler->incSetStart = -1;
     compiler->lcOpStart = -1;
@@ -676,6 +678,7 @@ static void dot(Parser *p, Compiler *c, bool canAssign) {
     int name = identifierConstant(p, &p->previous);
     if (canAssign && matchToken(p, TOKEN_EQUAL)) {
         expression(p);
+        current->propSetStart = currentChunk()->count; /* fuse-mark */
         emitConstRef(p, OP_SET_PROPERTY, name);
     } else if (matchToken(p, TOKEN_LEFT_PAREN)) {
         uint8_t argCount = 0;
@@ -690,7 +693,21 @@ static void dot(Parser *p, Compiler *c, bool canAssign) {
         emitConstRef(p, OP_INVOKE, name);
         emitByte(p, argCount);
     } else {
-        emitConstRef(p, OP_GET_PROPERTY, name);
+        /* local.field — fuse the GET_LOCAL receiver read. Mark + bytes +
+           adjacency verified, and/or guard as with every rewind */
+        Chunk *ch = currentChunk();
+        int lm = current->localGetStart;
+        if (lm >= 0 && lm == ch->count - 2 && ch->code[lm] == OP_GET_LOCAL &&
+            current->andOrTarget <= lm) {
+            uint8_t slot = ch->code[lm + 1];
+            ch->count = lm;
+            emitByte(p, OP_GET_LOCAL_PROPERTY);
+            emitByte(p, slot);
+            emitByte(p, (name >> 8) & 0xff);
+            emitByte(p, name & 0xff);
+        } else {
+            emitConstRef(p, OP_GET_PROPERTY, name);
+        }
     }
 }
 
@@ -1055,6 +1072,16 @@ static void emitExprPop(Parser *p) {
         uint8_t hi = ch->code[n - 2], lo = ch->code[n - 1];
         ch->count = n - 3;
         emitByte(p, OP_SET_GLOBAL_POP);
+        emitByte(p, hi);
+        emitByte(p, lo);
+        return;
+    }
+    int pmark = current->propSetStart;
+    /* rewind 3, emit 3: length-neutral, the span is a single instruction */
+    if (pmark >= 0 && pmark == n - 3 && ch->code[pmark] == OP_SET_PROPERTY) {
+        uint8_t hi = ch->code[n - 2], lo = ch->code[n - 1];
+        ch->count = n - 3;
+        emitByte(p, OP_SET_PROPERTY_POP);
         emitByte(p, hi);
         emitByte(p, lo);
         return;
