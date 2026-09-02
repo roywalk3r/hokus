@@ -20,7 +20,13 @@ typedef struct {
     int frameCount;
     Value stack[STACK_MAX];
     Value *stackTop;
-    Table globals;
+    /* Dense global-variable storage, indexed by compile-time slot (see
+       value.h hkGlobalNames). EMPTY_VAL = declared-by-bytecode slot that no
+       DEFINE_GLOBAL has run yet, which keeps undefined access a runtime
+       error. Grows lazily at first touch of a slot. */
+    Value *gslots;
+    int gslotsCount;
+    int gslotsCap;
     ObjUpvalue *openUpvalues;
     ObjString *initString; /* cached "init" root for construction calls */
     int trace;             /* per-instruction execution trace when non-zero */

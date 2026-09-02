@@ -22,10 +22,15 @@ typedef uint64_t Value;
 #define TAG_NIL     1
 #define TAG_FALSE   2
 #define TAG_TRUE    3
+/* Not a language value: marks a global slot that has never been defined, so
+   an undefined global stays a *runtime* error the way a failed table lookup
+   used to be. Never reaches the stack — every read tests for it first. */
+#define TAG_EMPTY   4
 
 #define NIL_VAL     ((Value)(QNAN | TAG_NIL))
 #define TRUE_VAL    ((Value)(QNAN | TAG_TRUE))
 #define FALSE_VAL   ((Value)(QNAN | TAG_FALSE))
+#define EMPTY_VAL   ((Value)(QNAN | TAG_EMPTY))
 
 static inline Value numToValue(double num) {
     union { uint64_t bits; double num; } u;
@@ -43,6 +48,7 @@ static inline double valueToNum(Value value) {
 #define OBJ_VAL(o)      ((Value)(SIGN_BIT | QNAN | (uint64_t)(uintptr_t)(o)))
 
 #define IS_NIL(v)       ((v) == NIL_VAL)
+#define IS_EMPTY(v)     ((v) == EMPTY_VAL)
 #define IS_BOOL(v)      (((v) | 1) == TRUE_VAL)
 #define IS_NUMBER(v)    (((v) & QNAN) != QNAN)
 #define IS_OBJ(v)       (((v) & (QNAN | SIGN_BIT)) == (QNAN | SIGN_BIT))
@@ -169,6 +175,19 @@ extern HkEmitFn hkEmit; /* set by the host (native CLI or WASM shim) */
 
 struct Table;
 extern struct Table hkStrings; /* global string intern table, weak keys */
+
+/* Global variables resolve to a dense slot index at compile time. The map
+   lives beside the intern table rather than on the VM because compile() has
+   no VM handle, and it must outlive a single compilation: the REPL compiles
+   one entry at a time and `import` compiles a module into the same unit, so
+   slot 3 has to mean the same variable across all of them. Reset with the
+   intern table in objectsInit(). Names are held strongly (GC roots) — the
+   constant pool no longer carries them. */
+extern struct Table hkGlobalNames;    /* ObjString* -> NUMBER_VAL(slot) */
+extern ObjString **hkGlobalNameList;  /* slot -> name, for error messages */
+extern int hkGlobalCount;
+int hkGlobalSlot(ObjString *name);    /* existing slot, or append a new one */
+void hkGlobalsFree(void);
 
 void printValue(Value value);         /* writes through the VM output sink */
 void numberToString(double value, char *buf, int bufSize);

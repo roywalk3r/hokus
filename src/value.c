@@ -58,6 +58,8 @@ static Obj *allocateObj(size_t size, ObjType type) {
     return obj;
 }
 
+static int hkGlobalCap = 0;
+
 void objectsInit(void) {
     hkObjects = NULL;
     hkGcCounter = 0;
@@ -66,6 +68,10 @@ void objectsInit(void) {
     hkGcCollections = 0;
     hkActiveVM = NULL;
     initTable(&hkStrings);
+    initTable(&hkGlobalNames);
+    hkGlobalNameList = NULL;
+    hkGlobalCap = 0;
+    hkGlobalCount = 0;
 }
 
 static uint32_t hashString(const char *key, int length) {
@@ -80,6 +86,31 @@ static uint32_t hashString(const char *key, int length) {
 /* Global intern table — weak keys: gc.c's sweep drops unmarked entries.
    Interning is process-global (not per-VM), matching hkObjects ownership. */
 Table hkStrings;
+
+/* See value.h for why this is process-global. hkGlobalNameList entries are
+   interned strings, so as long as gc.c marks them the intern table keeps
+   the key side alive too. */
+Table hkGlobalNames;
+ObjString **hkGlobalNameList = NULL;
+int hkGlobalCount = 0;
+
+int hkGlobalSlot(ObjString *name) {
+    Value *existing;
+    if (tableGet(&hkGlobalNames, name, &existing))
+        return (int)AS_NUMBER(*existing);
+    int slot = hkGlobalCount;
+    if (slot >= hkGlobalCap) {
+        int oldCap = hkGlobalCap;
+        hkGlobalCap = oldCap < 8 ? 8 : oldCap * 2;
+        hkGlobalNameList = HK_REALLOC(hkGlobalNameList,
+            (size_t)oldCap * sizeof(ObjString *),
+            (size_t)hkGlobalCap * sizeof(ObjString *));
+    }
+    hkGlobalNameList[slot] = name;
+    tableSet(&hkGlobalNames, name, NUMBER_VAL((double)slot));
+    hkGlobalCount++;
+    return slot;
+}
 
 static ObjString *allocateString(char *chars, int length, uint32_t hash) {
     ObjString *interned = tableFindString(&hkStrings, chars, length, hash);

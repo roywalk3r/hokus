@@ -249,6 +249,20 @@ static int invokeInstruction(const char *name, Chunk *chunk, int offset) {
     return offset + 4;
 }
 
+/* Global ops carry a VM-wide slot index, not a constant index — the name
+   comes from the slot table, which is why listings print "<slot> <name>"
+   with no constant-pool entry to match. */
+static int globalSlotInstruction(const char *name, Chunk *chunk, int offset) {
+    uint16_t slot = (uint16_t)((chunk->code[offset + 1] << 8) | chunk->code[offset + 2]);
+    emitPadded(name, 16);
+    emitPadded("", 4);
+    emitInt(slot);
+    emit(" ");
+    emitValueBrief(OBJ_VAL(hkGlobalNameList[slot]));
+    emit("\n");
+    return offset + 3;
+}
+
 static int byteInstruction(const char *name, Chunk *chunk, int offset) {
     emitPadded(name, 16);
     emitPadded("", 4);
@@ -329,7 +343,7 @@ int disassembleInstruction(Chunk *chunk, int offset) {
         case OP_TRUE:          return simpleInstruction("OP_TRUE", offset);
         case OP_FALSE:         return simpleInstruction("OP_FALSE", offset);
         case OP_POP:           return simpleInstruction("OP_POP", offset);
-        case OP_GET_GLOBAL:    return constantInstruction("OP_GET_GLOBAL", chunk, offset);
+        case OP_GET_GLOBAL:    return globalSlotInstruction("OP_GET_GLOBAL", chunk, offset);
         case OP_GET_LOCAL_PROPERTY:
             return localPropertyInstruction("OP_GET_LOCAL_PROPERTY", chunk, offset);
         case OP_SET_PROPERTY_POP:
@@ -350,9 +364,9 @@ int disassembleInstruction(Chunk *chunk, int offset) {
             return localPropertyConst8Instruction("OP_ADD_LOCAL_PROPERTY_CONST8_SET", chunk, offset);
         case OP_RETURN_LOCAL_PROPERTY:
             return localPropertyInstruction("OP_RETURN_LOCAL_PROPERTY", chunk, offset);
-        case OP_DEFINE_GLOBAL: return constantInstruction("OP_DEFINE_GLOBAL", chunk, offset);
-        case OP_SET_GLOBAL:    return constantInstruction("OP_SET_GLOBAL", chunk, offset);
-        case OP_SET_GLOBAL_POP: return constantInstruction("OP_SET_GLOBAL_POP", chunk, offset);
+        case OP_DEFINE_GLOBAL: return globalSlotInstruction("OP_DEFINE_GLOBAL", chunk, offset);
+        case OP_SET_GLOBAL:    return globalSlotInstruction("OP_SET_GLOBAL", chunk, offset);
+        case OP_SET_GLOBAL_POP: return globalSlotInstruction("OP_SET_GLOBAL_POP", chunk, offset);
         case OP_GET_LOCAL:     return byteInstruction("OP_GET_LOCAL", chunk, offset);
         case OP_SET_LOCAL:     return byteInstruction("OP_SET_LOCAL", chunk, offset);
         case OP_SET_LOCAL_POP: return byteInstruction("OP_SET_LOCAL_POP", chunk, offset);

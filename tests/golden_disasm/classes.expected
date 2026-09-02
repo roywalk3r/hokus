@@ -1,21 +1,21 @@
 == tests/golden_disasm/classes.hk ==
-   0    1 OP_CLOSURE          1 <fn add>
+   0    1 OP_CLOSURE          0 <fn add>
    3    | OP_DEFINE_GLOBAL    0 "add"
-   6    2 OP_CLASS            2 "Pt"
-   9    | OP_DEFINE_GLOBAL    2 "Pt"
-  12    | OP_GET_GLOBAL       2 "Pt"
-  15    | OP_CLOSURE          4 <fn init>
-  18    | OP_METHOD           3 "init"
+   6    2 OP_CLASS            1 "Pt"
+   9    | OP_DEFINE_GLOBAL    1 "Pt"
+  12    | OP_GET_GLOBAL       1 "Pt"
+  15    | OP_CLOSURE          3 <fn init>
+  18    | OP_METHOD           2 "init"
   21    | OP_POP
   22    3 OP_GET_GLOBAL       0 "add"
-  25    | OP_CONSTANT8        5 1
-  27    | OP_CONSTANT8        6 2
+  25    | OP_CONSTANT8        4 1
+  27    | OP_CONSTANT8        5 2
   29    | OP_CALL             2
   31    | OP_PRINT
-  32    4 OP_GET_GLOBAL       2 "Pt"
-  35    | OP_CONSTANT8        7 9
+  32    4 OP_GET_GLOBAL       1 "Pt"
+  35    | OP_CONSTANT8        6 9
   37    | OP_CALL             1
-  39    | OP_GET_PROPERTY     8 "x"
+  39    | OP_GET_PROPERTY     7 "x"
   42    | OP_PRINT
   43    5 OP_NIL
   44    | OP_RETURN

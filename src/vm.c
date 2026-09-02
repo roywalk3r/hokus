@@ -10,12 +10,16 @@ HkEmitFn hkEmit;
 
 static void defaultEmit(const char *s) { (void)s; }
 
+static void ensureGlobalSlot(VM *vm, int idx);
+
 void initVM(VM *vm) {
     if (!hkEmit) hkEmit = defaultEmit;
     vm->frameCount = 0;
     vm->openUpvalues = NULL;
     vm->hadRuntimeError = false;
-    initTable(&vm->globals);
+    vm->gslots = NULL;
+    vm->gslotsCount = 0;
+    vm->gslotsCap = 0;
     objectsInit();
     vm->initString = copyString("init", 4);
     vm->trace = 0;
@@ -29,7 +33,7 @@ void resetVMStack(VM *vm) {
 
 void freeVM(VM *vm) {
     gcFreeAll();
-    freeTable(&vm->globals);
+    HK_FREE(vm->gslots, (size_t)vm->gslotsCap * sizeof(Value));
 }
 
 void runtimeError(VM *vm, const char *message) {
@@ -379,28 +383,28 @@ static InterpretResult run(VM *vm, int budget) {
             op_OP_FALSE: push(vm, BOOL_VAL(false)); continue;
             op_OP_POP:   pop(vm); continue;
             op_OP_GET_GLOBAL: {
-                ObjString *name = READ_STRING();
-                Value *value;
-                if (!tableGet(&vm->globals, name, &value)) {
-                    undefinedVarError(vm, name);
+                uint16_t slot = READ_SHORT();
+                if (slot >= vm->gslotsCount || IS_EMPTY(vm->gslots[slot])) {
+                    undefinedVarError(vm, hkGlobalNameList[slot]);
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                push(vm, *value);
+                push(vm, vm->gslots[slot]);
                 continue;
             }
             op_OP_DEFINE_GLOBAL: {
-                ObjString *name = READ_STRING();
-                tableSet(&vm->globals, name, peek(vm, 0));
+                uint16_t slot = READ_SHORT();
+                ensureGlobalSlot(vm, slot);
+                vm->gslots[slot] = peek(vm, 0);
                 pop(vm);
                 continue;
             }
             op_OP_SET_GLOBAL: {
-                ObjString *name = READ_STRING();
-                if (tableSet(&vm->globals, name, peek(vm, 0))) {
-                    tableDelete(&vm->globals, name);
-                    undefinedVarError(vm, name);
+                uint16_t slot = READ_SHORT();
+                if (slot >= vm->gslotsCount || IS_EMPTY(vm->gslots[slot])) {
+                    undefinedVarError(vm, hkGlobalNameList[slot]);
                     return INTERPRET_RUNTIME_ERROR;
                 }
+                vm->gslots[slot] = peek(vm, 0);
                 continue;
             }
             op_OP_GET_LOCAL:
@@ -445,13 +449,13 @@ static InterpretResult run(VM *vm, int budget) {
                 continue;
             }
             op_OP_SET_GLOBAL_POP: {
-                ObjString *name = READ_STRING();
+                uint16_t slot = READ_SHORT();
                 Value v = pop(vm);
-                if (tableSet(&vm->globals, name, v)) {
-                    tableDelete(&vm->globals, name);
-                    undefinedVarError(vm, name);
+                if (slot >= vm->gslotsCount || IS_EMPTY(vm->gslots[slot])) {
+                    undefinedVarError(vm, hkGlobalNameList[slot]);
                     return INTERPRET_RUNTIME_ERROR;
                 }
+                vm->gslots[slot] = v;
                 continue;
             }
             op_OP_GET_UPVALUE: {
@@ -1034,9 +1038,25 @@ static Value clockNative(int argCount, Value *args) {
 
 /* Compile source and prime the VM's first frame without executing anything.
    Returns INTERPRET_OK (ready to slice) or INTERPRET_COMPILE_ERROR. */
+static void ensureGlobalSlot(VM *vm, int idx) {
+    if (idx < vm->gslotsCount) return;
+    if (idx >= vm->gslotsCap) {
+        int oldCap = vm->gslotsCap;
+        int cap = oldCap < 8 ? 8 : oldCap;
+        while (cap <= idx) cap *= 2;
+        vm->gslots = HK_REALLOC(vm->gslots, (size_t)oldCap * sizeof(Value),
+                                (size_t)cap * sizeof(Value));
+        vm->gslotsCap = cap;
+    }
+    while (vm->gslotsCount <= idx) vm->gslots[vm->gslotsCount++] = EMPTY_VAL;
+}
+
 InterpretResult vmStartFunction(VM *vm, ObjFunction *function) {
-    tableSet(&vm->globals, copyString("clock", 5),
-             OBJ_VAL(newNative(clockNative)));
+    /* natives are globals like any other: a slot, defined up front */
+    int clockSlot = hkGlobalSlot(copyString("clock", 5));
+    ensureGlobalSlot(vm, clockSlot);
+    if (IS_EMPTY(vm->gslots[clockSlot]))
+        vm->gslots[clockSlot] = OBJ_VAL(newNative(clockNative));
     ObjClosure *closure = newClosure(function);
     push(vm, OBJ_VAL(closure));
     CallFrame *frame = &vm->frames[vm->frameCount++];

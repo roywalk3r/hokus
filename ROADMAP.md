@@ -293,6 +293,31 @@ and appears in the README or the playground.
   twin tell recorded: twin anomaly ≠ prev/cur spread flags a poisoned twin
   build, not a noisy session.
 
+- **Slot-resolved globals (mechanism change, not a fusion)** — global names
+  resolve to dense integer slots at compile time via a process-global map
+  (value.c `hkGlobalSlot`; lives beside the intern table so REPL entries and
+  `import` share numbering). OP_GET_GLOBAL/OP_DEFINE_GLOBAL/OP_SET_GLOBAL/
+  OP_SET_GLOBAL_POP operands become 16-bit slot indices — same instruction
+  lengths, but the name strings leave the constant pool (they're rooted via
+  `hkGlobalNameList` in gc.c now). VM stores a dense `Value *gslots` with
+  EMPTY_VAL = never-defined, so undefined access stays a *runtime* error with
+  the identical message; late binding, redeclaration, `var a = a;` and mutual
+  recursion all verified against the corpus trio plus probes. Images bump to
+  HKI2 carrying the slot-name table (load requires an empty map). Disasm
+  prints "slot name"; roundtrip reassembles from the slot digits alone.
+  Gate caught one real bug mid-refactor: classDeclaration called
+  identifierConstant() directly and passed the *constant* index to
+  defineVariable, so class B bound to whatever slot shared that number.
+  Numbers, 1M-iteration top-level `while` (the playground default path):
+  native 43.4 → 24.9 ms (−43%), WASM 58.9 → 38.1 ms (−35%), interleaved
+  best-of-11/7-round. Controls: native local-while + fib flat; WASM
+  local-while read +22%/flat across repeated sessions on byte-identical code
+  with no changed op bodies executed — recorded as the known wasm layout
+  noise, trending clean in the newer sessions. New trendline case
+  "1M while (global counter)". The remaining half of the global gap is the
+  missed fusions — now structurally reachable since a global is an integer
+  operand like a local.
+
 ## Next (in order)
 
 1. **Call-path work, remaining** — after the slots-window, sub-fusion, and

@@ -323,6 +323,18 @@ static int identifierConstant(Parser *p, Token *name) {
     return makeConstant(p, OBJ_VAL(copyString(name->start, name->length)));
 }
 
+/* Global names bypass the constant pool: the operand is a dense slot index,
+   so the VM reads/writes an array instead of probing globals by name. The
+   slot map outlives one compilation (REPL entries, import) — see value.h. */
+static int globalSlot(Parser *p, Token *name) {
+    int slot = hkGlobalSlot(copyString(name->start, name->length));
+    if (slot > 0xffff) {
+        error(p, "Too many global variables.");
+        return 0;
+    }
+    return slot;
+}
+
 static bool identifiersEqual(Token *a, Token *b) {
     if (a->length != b->length) return false;
     return hk_strncmp(a->start, b->start, a->length) == 0;
@@ -402,7 +414,7 @@ static int parseVariable(Parser *p, const char *errorMessage) {
     consume(p, TOKEN_IDENTIFIER, errorMessage);
     declareVariable(p, &p->previous);
     if (current->scopeDepth > 0) return 0;
-    return identifierConstant(p, &p->previous);
+    return globalSlot(p, &p->previous);
 }
 
 static void defineVariable(Parser *p, int global) {
@@ -644,7 +656,7 @@ static void namedVariable(Parser *p, Token name, bool canAssign) {
         getOp = OP_GET_UPVALUE;
         setOp = OP_SET_UPVALUE;
     } else {
-        arg = identifierConstant(p, &name);
+        arg = globalSlot(p, &name);
         getOp = OP_GET_GLOBAL;
         setOp = OP_SET_GLOBAL;
     }
@@ -945,11 +957,14 @@ static void method(Parser *p) {
 static void classDeclaration(Parser *p) {
     consume(p, TOKEN_IDENTIFIER, "Expect class name.");
     Token className = p->previous;
-    int nameConstant = identifierConstant(p, &p->previous);
+    /* OP_CLASS needs the name string constant (the ObjClass keeps it);
+       the variable binding uses the global slot — two different indexes */
+    int nameConstant = identifierConstant(p, &className);
+    int slot = globalSlot(p, &className);
     declareVariable(p, &className);
 
     emitConstRef(p, OP_CLASS, nameConstant);
-    defineVariable(p, nameConstant);
+    defineVariable(p, slot);
 
     ClassCompiler classCompiler;
     classCompiler.hasSuperclass = false;

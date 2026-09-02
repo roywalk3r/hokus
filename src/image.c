@@ -1,9 +1,13 @@
 /* HOKUS — freestanding Lox-class bytecode VM. MIT License; see LICENSE. */
-/* Bytecode images: persist a compiled chunk tree to bytes (magic "HKI1") and
+/* Bytecode images: persist a compiled chunk tree to bytes (magic "HKI2") and
    load it back into fresh VM objects, source-free. Raw f64 bits (not the
    text used by --emit-bin) so -0 and full precision roundtrip exactly.
    Lines ride along so runtime error traces from images match source runs.
-   Native-only (stdio host); the WASM build never loads images. */
+   Native-only (stdio host); the WASM build never loads images.
+   HKI2: global operands are VM-wide slot indices, so the image carries the
+   slot-name table between the magic and the root function. Loading requires
+   an empty slot map (fresh process) — slot identities would otherwise
+   collide with names a REPL already assigned. */
 #include "image.h"
 
 #include <string.h>
@@ -131,7 +135,13 @@ static ObjFunction *readFn(ImageIO *io) {
 
 void writeImage(ObjFunction *fn, FILE *out) {
     ImageIO io = { out, true };
-    putBytes(&io, "HKI1", 4);
+    putBytes(&io, "HKI2", 4);
+    putU32(&io, (uint32_t)hkGlobalCount);
+    for (int i = 0; i < hkGlobalCount; i++) {
+        ObjString *s = hkGlobalNameList[i];
+        putU32(&io, (uint32_t)s->length);
+        putBytes(&io, s->chars, (size_t)s->length);
+    }
     writeFn(&io, fn);
 }
 
@@ -139,6 +149,25 @@ ObjFunction *readImage(FILE *in) {
     ImageIO io = { in, true };
     char magic[4];
     getBytes(&io, magic, 4);
-    if (!io.ok || memcmp(magic, "HKI1", 4) != 0) return NULL;
+    if (!io.ok || memcmp(magic, "HKI2", 4) != 0) return NULL;
+    if (hkGlobalCount != 0) return NULL; /* slot identities must not collide */
+    uint32_t slots = getU32(&io);
+    for (uint32_t i = 0; i < slots; i++) {
+        uint32_t len = getU32(&io);
+        if (!io.ok || len > (1u << 20)) { io.ok = false; return NULL; }
+        char buf[256];
+        char *chars = buf;
+        if (len >= sizeof(buf)) {
+            chars = HK_REALLOC(NULL, 0, len + 1);
+            if (!chars) { io.ok = false; return NULL; }
+        }
+        getBytes(&io, chars, len);
+        if (!io.ok) { if (chars != buf) HK_FREE(chars, len + 1); return NULL; }
+        chars[len] = '\0';
+        /* slot index comes back identical: the map was empty, and slots
+           allocate densely in order */
+        hkGlobalSlot(copyString(chars, len));
+        if (chars != buf) HK_FREE(chars, len + 1);
+    }
     return readFn(&io);
 }

@@ -34,10 +34,14 @@ const OPS = [
   "OP_SUB_LOCAL_CONST8_SET", "OP_GREATER_LOCAL_CONST8_JUMP",
 ];
 const OPC = Object.fromEntries(OPS.map((n, i) => [n, i]));
-const CONST_OPS = new Set(["OP_CONSTANT", "OP_GET_GLOBAL", "OP_DEFINE_GLOBAL",
-  "OP_SET_GLOBAL", "OP_GET_PROPERTY", "OP_SET_PROPERTY", "OP_CLASS",
+const CONST_OPS = new Set(["OP_CONSTANT",
+  "OP_GET_PROPERTY", "OP_SET_PROPERTY", "OP_CLASS",
   "OP_METHOD", "OP_GET_SUPER", "OP_CLOSURE", "OP_STATIC_METHOD",
-  "OP_SET_GLOBAL_POP", "OP_SET_PROPERTY_POP"]);
+  "OP_SET_PROPERTY_POP"]);
+/* global ops carry a 2-byte slot index; the printed name is display-only
+   (names live in the VM-wide slot table, not the constant pool) */
+const GLOBAL_SLOT_OPS = new Set(["OP_GET_GLOBAL", "OP_DEFINE_GLOBAL",
+  "OP_SET_GLOBAL", "OP_SET_GLOBAL_POP"]);
 const CONST8_OPS = new Set(["OP_CONSTANT8"]); /* same operand text, 1-byte index */
 const LOCAL_CONST8_OPS = new Set(["OP_SUB_LOCAL_CONST8",
   "OP_ADD_LOCAL_CONST8_SET", "OP_ADD_LOCAL_CONST8",
@@ -147,6 +151,10 @@ function assemble(listing) {
             code.push(u[1] === "local" ? 1 : 0, Number(u[2]));
           }
         }
+      } else if (GLOBAL_SLOT_OPS.has(op)) {
+        const c = operand.match(/^(\d+) (.*)$/);
+        const slot = Number(c[1]);
+        code.push(slot >> 8, slot & 0xff);
       } else if (LC8J_OPS.has(op)) {
         const c = operand.match(/^(\d+) (\d+) (.*) \| (\d+) -> (\d+)$/);
         const idx = Number(c[2]);

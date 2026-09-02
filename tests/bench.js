@@ -58,6 +58,10 @@ const PROGRAMS = {
     + "    a = p.x; a = p.y; a = p.z;\n"
     + "    p.x = a; p.y = a; p.z = a;\n"
     + "}\nprint a;\n",
+  "1M while (global counter)":
+    /* top-level code is all globals: the path playground users hit */
+    "var s = 0;\nvar i = 0;\n"
+    + "while (i < 1000000) { s = s + i; i = i + 1; }\nprint s;\n",
   "2k string concat (+ GC)":
     "var s = \"\";\nfor (var i = 0; i < 2000; i = i + 1) s = s + \"ab\";\nprint s;\n",
 };

@@ -123,12 +123,13 @@ static void markRoots(VM *vm) {
          upvalue = upvalue->next) {
         markObject((Obj *)upvalue);
     }
-    for (int i = 0; i < vm->globals.capacity; i++) {
-        Entry *entry = &vm->globals.entries[i];
-        if (entry->key != NULL) {
-            markObject((Obj *)entry->key);
-            markValue(entry->value);
-        }
+    for (int i = 0; i < vm->gslotsCount; i++) {
+        if (!IS_EMPTY(vm->gslots[i])) markValue(vm->gslots[i]);
+    }
+    /* slot-name strings stay alive as long as their slot does — error text
+       and disassembly read them; the constant pool no longer roots them */
+    for (int i = 0; i < hkGlobalCount; i++) {
+        markObject((Obj *)hkGlobalNameList[i]);
     }
 }
 
