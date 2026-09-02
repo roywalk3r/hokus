@@ -352,6 +352,18 @@ precedent can't save it — the target bench itself doesn't win. Reverted;
 the sibling INVOKE variant is skipped by design (it would need the rejected
 CALL_GLOBAL en-bloc slide).)
 
+(Measured and skipped without building: an inline cache on OP_GET_GLOBAL.
+Decomposed the global-vs-local loop gap first, native best-of-11 over 1M
+iterations: local fused 3.04 ms, local with fusion defeated (`i = 1 + i`,
+disasm-confirmed unfused) 9.36 ms, global 25.28 ms. That brackets the
+22.2 ms gap at ~50% table lookup (~3.7 ns / ~13 cycles per masked hit)
+and ~50% dispatches the fuser cannot collapse. An IC only shortens the
+lookup half — ceiling ~7 ms of 22 — while adding per-site cache storage,
+a rehash generation counter, and GC rules for the cached Entry*. Slot
+resolution takes both halves for the same effort, because a uint8 global
+slot is structurally what a local already is, so the whole existing
+fusion family applies to it unchanged. Go there instead.)
+
 (Module namespaces are parked: true namespacing needs per-module
 environments for functions that reference module globals — include
 semantics is the shipped model.)
