@@ -555,6 +555,8 @@ static void binary(Parser *p, Compiler *c, bool canAssign) {
                 emitConstant(p, NUMBER_VAL(r));
                 break;
             }
+            if (operatorType == TOKEN_STAR &&
+                tryFuseLocalConstOp(p, lhsLocalMark, OP_MUL_LOCAL_CONST8)) break;
             emitByte(p, operatorType == TOKEN_STAR    ? OP_MULTIPLY
                       : operatorType == TOKEN_STAR    ? OP_MULTIPLY
                       : operatorType == TOKEN_SLASH   ? OP_DIVIDE : OP_MODULO);
@@ -1076,6 +1078,20 @@ static void emitExprPop(Parser *p) {
             ch->count = n - 7;
             current->incSetStart = ch->count; /* fuse-mark */
             emitByte(p, OP_ADD_LOCAL_CONST8_SET);
+            emitByte(p, slot);
+            emitByte(p, cidx);
+            return;
+        }
+        /* `a = b * k` statement (dst may differ): MUL_LOCAL_CONST8 +
+           SET_LOCAL folds to one 4-byte op */
+        if (n >= 5 && current->andOrTarget <= n - 5 &&
+            ch->code[n - 5] == OP_MUL_LOCAL_CONST8) {
+            uint8_t slot = ch->code[n - 4], cidx = ch->code[n - 3];
+            uint8_t dst = ch->code[n - 1];
+            ch->count = n - 5;
+            current->incSetStart = ch->count; /* fuse-mark */
+            emitByte(p, OP_MUL_LOCAL_CONST8_SET);
+            emitByte(p, dst);
             emitByte(p, slot);
             emitByte(p, cidx);
             return;

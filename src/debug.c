@@ -319,6 +319,10 @@ int disassembleInstruction(Chunk *chunk, int offset) {
             return localLocalInstruction("OP_ADD_LOCAL_LOCAL", chunk, offset);
         case OP_ADD_LOCAL_LOCAL_SET:
             return localLocalSetInstruction("OP_ADD_LOCAL_LOCAL_SET", chunk, offset);
+        case OP_MUL_LOCAL_CONST8:
+            return localConst8Instruction("OP_MUL_LOCAL_CONST8", chunk, offset);
+        case OP_MUL_LOCAL_CONST8_SET:
+            return localLocalSetInstruction("OP_MUL_LOCAL_CONST8_SET", chunk, offset);
         case OP_DEFINE_GLOBAL: return constantInstruction("OP_DEFINE_GLOBAL", chunk, offset);
         case OP_SET_GLOBAL:    return constantInstruction("OP_SET_GLOBAL", chunk, offset);
         case OP_SET_GLOBAL_POP: return constantInstruction("OP_SET_GLOBAL_POP", chunk, offset);

@@ -358,6 +358,8 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_SET_PROPERTY_POP,
         &&op_OP_ADD_LOCAL_LOCAL,
         &&op_OP_ADD_LOCAL_LOCAL_SET,
+        &&op_OP_MUL_LOCAL_CONST8,
+        &&op_OP_MUL_LOCAL_CONST8_SET,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
@@ -549,6 +551,29 @@ static InterpretResult run(VM *vm, int budget) {
                     runtimeError(vm, "Operands must be two numbers or two strings.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
+                continue;
+            }
+            /* local * const: rhs proven numeric at compile time */
+            op_OP_MUL_LOCAL_CONST8: {
+                uint8_t slot = READ_BYTE();
+                Value b = frame->consts[READ_BYTE()];
+                Value a = FRAME_SLOTS[slot];
+                if (!IS_NUMBER(a)) {
+                    runtimeError(vm, "Operands must be numbers.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                push(vm, NUMBER_VAL(AS_NUMBER(a) * AS_NUMBER(b)));
+                continue;
+            }
+            op_OP_MUL_LOCAL_CONST8_SET: {
+                uint8_t dst = READ_BYTE(), slot = READ_BYTE();
+                Value b = frame->consts[READ_BYTE()];
+                Value a = FRAME_SLOTS[slot];
+                if (!IS_NUMBER(a)) {
+                    runtimeError(vm, "Operands must be numbers.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                FRAME_SLOTS[dst] = NUMBER_VAL(AS_NUMBER(a) * AS_NUMBER(b));
                 continue;
             }
             op_OP_MULTIPLY: BINARY_OP(NUMBER_VAL, *); continue;

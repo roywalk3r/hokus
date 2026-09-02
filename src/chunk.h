@@ -65,6 +65,8 @@ typedef enum {
     OP_SET_PROPERTY_POP,
     OP_ADD_LOCAL_LOCAL,
     OP_ADD_LOCAL_LOCAL_SET,
+    OP_MUL_LOCAL_CONST8,
+    OP_MUL_LOCAL_CONST8_SET,
 } OpCode;
 
 typedef struct ObjClass ObjClass;

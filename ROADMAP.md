@@ -230,6 +230,18 @@ and appears in the README or the playground.
   32.3 / 32.2), so this is jump-table growth, not the op bodies. The
   `classes` disasm golden picked up the fused form (single intended diff).
 
+- **`OP_MUL_LOCAL_CONST8` / `OP_MUL_LOCAL_CONST8_SET`** — `local * const`
+  (`t = i * 2` scaling shapes) via the existing generic tryFuseLocalConstOp
+  (expression form, 3 bytes) plus a statement fold in emitExprPop
+  (dst independent, 4 bytes — the general-dst form ADD_LOCAL_LOCAL_SET
+  established). Scoped-var while bench: −17% native, −19..31% WASM across
+  two interleaved sessions. The mega-while accumulator (no multiply) reads
+  ~+13% slower native with byte-identical code in all three binaries —
+  3-way prev/twin/cur with a fusion-disabled twin (ops in the table,
+  fusion sites off) puts twin ≈ cur (5.69 / 6.59 / 6.57), i.e. pure
+  jump-table growth again; fib/leaf flat. Third instance of the
+  documented layout-attribution precedent.
+
 ## Next (in order)
 
 1. **Call-path work, remaining** — after the slots-window, sub-fusion, and
