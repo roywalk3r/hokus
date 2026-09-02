@@ -96,6 +96,7 @@ static bool callClosure(VM *vm, ObjClosure *closure, int argCount,
     newFrame->closure = closure;
     newFrame->ip = closure->function->chunk->code;
     newFrame->slots = vm->stackTop - argCount - 1;
+    newFrame->consts = closure->function->chunk->constants.values;
     *frameOut = newFrame;
     return true;
 }
@@ -272,7 +273,7 @@ static InterpretResult run(VM *vm, int budget) {
 
 #define READ_BYTE() (*frame->ip++)
 #define READ_SHORT() (frame->ip += 2, (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]))
-#define READ_CONSTANT() (frame->closure->function->chunk->constants.values[READ_SHORT()])
+#define READ_CONSTANT() (frame->consts[READ_SHORT()])
 #define READ_STRING() AS_STRING(READ_CONSTANT())
 #define BINARY_OP(valueType, op)                                     \
     do {                                                             \
@@ -329,7 +330,7 @@ static InterpretResult run(VM *vm, int budget) {
 
             op_OP_CONSTANT: push(vm, READ_CONSTANT()); continue;
             op_OP_CONSTANT8: {
-                push(vm, frame->closure->function->chunk->constants.values[
+                push(vm, frame->consts[
                     READ_BYTE()]);
                 continue;
             }
@@ -377,7 +378,7 @@ static InterpretResult run(VM *vm, int budget) {
                concat path unfused, so the error text matches OP_ADD's) */
             op_OP_ADD_LOCAL_CONST8_SET: {
                 uint8_t slot = READ_BYTE();
-                Value b = frame->closure->function->chunk->constants.values[
+                Value b = frame->consts[
                     READ_BYTE()];
                 Value a = FRAME_SLOTS[slot];
                 if (!IS_NUMBER(a)) {
@@ -391,7 +392,7 @@ static InterpretResult run(VM *vm, int budget) {
                then jump — increment first, exactly as the unfused pair ran */
             op_OP_ADD_LOCAL_CONST8_SET_LOOP: {
                 uint8_t slot = READ_BYTE();
-                Value b = frame->closure->function->chunk->constants.values[
+                Value b = frame->consts[
                     READ_BYTE()];
                 uint16_t offset = READ_SHORT();
                 Value a = FRAME_SLOTS[slot];
@@ -462,7 +463,7 @@ static InterpretResult run(VM *vm, int budget) {
             op_OP_SUBTRACT: BINARY_OP(NUMBER_VAL, -); continue;
             op_OP_SUB_LOCAL_CONST8: {
                 uint8_t slot = READ_BYTE();
-                Value b = frame->closure->function->chunk->constants.values[
+                Value b = frame->consts[
                     READ_BYTE()];
                 Value a = FRAME_SLOTS[slot];
                 if (!IS_NUMBER(a)) { /* rhs is a number (compile-time checked) */
@@ -474,7 +475,7 @@ static InterpretResult run(VM *vm, int budget) {
             }
             op_OP_ADD_LOCAL_CONST8: {
                 uint8_t slot = READ_BYTE();
-                Value b = frame->closure->function->chunk->constants.values[
+                Value b = frame->consts[
                     READ_BYTE()];
                 Value a = FRAME_SLOTS[slot];
                 if (!IS_NUMBER(a)) { /* rhs is a number (compile-time checked),
@@ -542,7 +543,7 @@ static InterpretResult run(VM *vm, int budget) {
                const is compile-time numeric */
             op_OP_LESS_LOCAL_CONST8_JUMP: {
                 uint8_t slot = READ_BYTE();
-                Value b = frame->closure->function->chunk->constants.values[
+                Value b = frame->consts[
                     READ_BYTE()];
                 uint16_t offset = READ_SHORT();
                 Value a = FRAME_SLOTS[slot];
@@ -557,7 +558,7 @@ static InterpretResult run(VM *vm, int budget) {
                the body. Same operand checks as the forward form */
             op_OP_LESS_LOCAL_CONST8_LOOP: {
                 uint8_t slot = READ_BYTE();
-                Value b = frame->closure->function->chunk->constants.values[
+                Value b = frame->consts[
                     READ_BYTE()];
                 uint16_t offset = READ_SHORT();
                 Value a = FRAME_SLOTS[slot];
@@ -573,9 +574,9 @@ static InterpretResult run(VM *vm, int budget) {
                ADD_LOCAL_CONST8_SET + LESS_LOCAL_CONST8_LOOP pair, in order */
             op_OP_ADD_LOCAL_CONST8_SET_LESS_LOOP: {
                 uint8_t slot = READ_BYTE();
-                Value inc = frame->closure->function->chunk->constants.values[
+                Value inc = frame->consts[
                     READ_BYTE()];
-                Value lim = frame->closure->function->chunk->constants.values[
+                Value lim = frame->consts[
                     READ_BYTE()];
                 uint16_t offset = READ_SHORT();
                 Value a = FRAME_SLOTS[slot];
@@ -824,7 +825,7 @@ static InterpretResult run(VM *vm, int budget) {
                exact return epilogue via the OP_RETURN label */
             op_OP_ADD_LOCAL_CONST8_RETURN: {
                 uint8_t slot = READ_BYTE();
-                Value b = frame->closure->function->chunk->constants.values[
+                Value b = frame->consts[
                     READ_BYTE()];
                 Value a = FRAME_SLOTS[slot];
                 if (!IS_NUMBER(a)) { /* rhs compile-time numeric, as OP_ADD */
@@ -863,6 +864,7 @@ InterpretResult vmStartFunction(VM *vm, ObjFunction *function) {
     frame->closure = closure;
     frame->ip = function->chunk->code;
     frame->slots = vm->stack;
+    frame->consts = function->chunk->constants.values;
     return INTERPRET_OK;
 }
 

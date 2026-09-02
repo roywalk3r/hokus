@@ -154,6 +154,16 @@ and appears in the README or the playground.
   JUMP + 3-byte increment → 6-byte op). Leaf: ~7% native, ~9% WASM
   (interleaved A/B, two sessions each); fib flat both hosts.
 
+- **Per-frame constants pointer** — `CallFrame.consts` caches
+  `closure->function->chunk->constants.values`, set once when the frame is
+  primed (callClosure / vmStartFunction). Every constant-touching op
+  (OP_CONSTANT8, all LC8 fusions, READ_CONSTANT names) drops a 5-hop
+  pointer chain to one load. Unlike the rejected VM-wide cached-constants
+  window, there is nothing to reload on call/return — the pointer is a
+  field, stable for the frame's lifetime (pools don't grow mid-run).
+  fib(28): ~8% native both A/B sessions, ~3-6% WASM (5/6 sessions; one
+  drift outlier up); leaf flat-to-better (no regression anywhere).
+
 ## Next (in order)
 
 1. **Call-path work, remaining** — after the slots-window, sub-fusion, and

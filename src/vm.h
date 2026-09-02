@@ -12,6 +12,7 @@ typedef struct {
     ObjClosure *closure;
     uint8_t *ip;
     Value *slots;
+    Value *consts; /* closure->function->chunk->constants.values, set once */
 } CallFrame;
 
 typedef struct {
