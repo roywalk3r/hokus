@@ -27,6 +27,10 @@ const PROGRAMS = {
     "fun bench() {\n    var s = 0;\n    var i = 0;\n"
     + "    while (i < 1000000) { s = s + i; i = i + 1; }\n    return s;\n}\n"
     + "print bench();\n",
+  "1M countdown (SUB fold + GREATER cond)":
+    "fun bench() {\n    var s = 0;\n    var i = 1000000;\n"
+    + "    while (i > 0) { s = s + i; i = i - 1; }\n    return s;\n}\n"
+    + "print bench();\n",
   "1M while scoped-var (mega past POPs)":
     /* body-scoped var leaves scope-close OP_POPs after the increment */
     "fun bench() {\n    var s = 0;\n    var i = 0;\n"

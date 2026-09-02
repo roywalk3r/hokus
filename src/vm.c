@@ -362,6 +362,8 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_MUL_LOCAL_CONST8_SET,
         &&op_OP_ADD_LOCAL_PROPERTY_CONST8_SET,
         &&op_OP_RETURN_LOCAL_PROPERTY,
+        &&op_OP_SUB_LOCAL_CONST8_SET,
+        &&op_OP_GREATER_LOCAL_CONST8_JUMP,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
@@ -511,6 +513,19 @@ static InterpretResult run(VM *vm, int budget) {
                 push(vm, NUMBER_VAL(AS_NUMBER(a) - AS_NUMBER(b)));
                 continue;
             }
+            /* `slot -= k` statement form — same-slot fold of
+               SUB_LOCAL_CONST8; SET_LOCAL, no value round-trip */
+            op_OP_SUB_LOCAL_CONST8_SET: {
+                uint8_t slot = READ_BYTE();
+                Value b = frame->consts[READ_BYTE()];
+                Value a = FRAME_SLOTS[slot];
+                if (!IS_NUMBER(a)) {
+                    runtimeError(vm, "Operands must be numbers.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                FRAME_SLOTS[slot] = NUMBER_VAL(AS_NUMBER(a) - AS_NUMBER(b));
+                continue;
+            }
             op_OP_ADD_LOCAL_CONST8: {
                 uint8_t slot = READ_BYTE();
                 Value b = frame->consts[
@@ -644,6 +659,20 @@ static InterpretResult run(VM *vm, int budget) {
                     return INTERPRET_RUNTIME_ERROR;
                 }
                 if (!(AS_NUMBER(a) < AS_NUMBER(b))) frame->ip += offset;
+                continue;
+            }
+            /* `local > const` branch condition — the descending-countdown
+               sibling; jump-taken when NOT (a > b), same convention */
+            op_OP_GREATER_LOCAL_CONST8_JUMP: {
+                uint8_t slot = READ_BYTE();
+                Value b = frame->consts[READ_BYTE()];
+                uint16_t offset = READ_SHORT();
+                Value a = FRAME_SLOTS[slot];
+                if (!IS_NUMBER(a)) {
+                    runtimeError(vm, "Operands must be numbers.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                if (!(AS_NUMBER(a) > AS_NUMBER(b))) frame->ip += offset;
                 continue;
             }
             /* rotated for-loop bottom check: if (slot < const) jump back to

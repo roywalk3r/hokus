@@ -277,6 +277,22 @@ and appears in the README or the playground.
   best-of-11/13 interleaves — one saved dispatch is below the native
   measurement floor at ~80 ns/call), controls flat both hosts.
 
+- **`OP_SUB_LOCAL_CONST8_SET` + `OP_GREATER_LOCAL_CONST8_JUMP`** —
+  `i = i - k;` decrement statements (mirror of the += fold: same-slot
+  SUB_LOCAL_CONST8; SET_LOCAL → one 3-byte op, sets the incSetStart mark so
+  downstream loop fusions see it) and `local > const` branch conditions
+  (emitCondJump's deep pattern relaxed from LESS-only to LESS|GREATER with a
+  ternary opcode pick — one arm, both comparisons). New countdown bench
+  (1M `while (i > 0) { s += i; i = i - 1; }`): native 14.79 → 8.21 ms (−44%),
+  WASM 24.71 → 15.34 ms (−38%), 9/6-round interleaved A/B. Control fib moved
+  +3.6% native / +5.7% WASM in the first session; the 3-way twin control
+  resolved it as noise, not layout and not regression: twin (cur layout,
+  fusion arms disabled) came in anomalously slow on BOTH hosts (24.79 native
+  / 37.23 wasm vs prev 19.83 / 31.13) while cur ≈ prev (20.56 / 30.89). If
+  the gap were layout, cur would track the twin; it doesn't. Third kind of
+  twin tell recorded: twin anomaly ≠ prev/cur spread flags a poisoned twin
+  build, not a noisy session.
+
 ## Next (in order)
 
 1. **Call-path work, remaining** — after the slots-window, sub-fusion, and

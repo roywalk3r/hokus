@@ -1123,6 +1123,19 @@ static void emitExprPop(Parser *p) {
             emitByte(p, s2);
             return;
         }
+        /* `i = i - k` statement decrement: SUB_LOCAL_CONST8; SET_LOCAL on
+           the same slot folds to one 3-byte op (mirror of the += form) */
+        if (n >= 5 && current->andOrTarget <= n - 5 &&
+            ch->code[n - 5] == OP_SUB_LOCAL_CONST8 &&
+            ch->code[n - 4] == ch->code[n - 1]) { /* same slot */
+            uint8_t slot = ch->code[n - 4], cidx = ch->code[n - 3];
+            ch->count = n - 5;
+            current->incSetStart = ch->count; /* fuse-mark */
+            emitByte(p, OP_SUB_LOCAL_CONST8_SET);
+            emitByte(p, slot);
+            emitByte(p, cidx);
+            return;
+        }
         uint8_t slot = ch->code[n - 1];
         ch->count = n - 2;
         emitBytes(p, OP_SET_LOCAL_POP, slot);
@@ -1196,13 +1209,16 @@ static int emitCondJump(Parser *p) {
            re-verified by bytes and offsets. */
         int lm = current->localGetStart, cm = current->numConstStart;
         if (current->andOrTarget <= last - 4 &&
-            ch->code[last] == OP_LESS && lm == last - 4 && cm == last - 2 &&
+            lm == last - 4 && cm == last - 2 &&
+            (ch->code[last] == OP_LESS || ch->code[last] == OP_GREATER) &&
             ch->code[lm] == OP_GET_LOCAL && ch->code[cm] == OP_CONSTANT8 &&
             IS_NUMBER(ch->constants.values[ch->code[cm + 1]])) {
             uint8_t slot = ch->code[lm + 1], cidx = ch->code[cm + 1];
             ch->count -= 5; /* rewind the whole 5-byte pattern; jump operand appended after */
             int off = ch->count + 3; /* patchJump points at the operand */
-            emitByte(p, OP_LESS_LOCAL_CONST8_JUMP);
+            emitByte(p, ch->code[last] == OP_LESS
+                         ? OP_LESS_LOCAL_CONST8_JUMP
+                         : OP_GREATER_LOCAL_CONST8_JUMP);
             emitByte(p, slot);
             emitByte(p, cidx);
             emitByte(p, 0xff);

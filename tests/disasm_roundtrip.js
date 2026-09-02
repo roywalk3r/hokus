@@ -31,6 +31,7 @@ const OPS = [
   "OP_MUL_LOCAL_CONST8", "OP_MUL_LOCAL_CONST8_SET",
   "OP_ADD_LOCAL_PROPERTY_CONST8_SET",
   "OP_RETURN_LOCAL_PROPERTY",
+  "OP_SUB_LOCAL_CONST8_SET", "OP_GREATER_LOCAL_CONST8_JUMP",
 ];
 const OPC = Object.fromEntries(OPS.map((n, i) => [n, i]));
 const CONST_OPS = new Set(["OP_CONSTANT", "OP_GET_GLOBAL", "OP_DEFINE_GLOBAL",
@@ -40,14 +41,16 @@ const CONST_OPS = new Set(["OP_CONSTANT", "OP_GET_GLOBAL", "OP_DEFINE_GLOBAL",
 const CONST8_OPS = new Set(["OP_CONSTANT8"]); /* same operand text, 1-byte index */
 const LOCAL_CONST8_OPS = new Set(["OP_SUB_LOCAL_CONST8",
   "OP_ADD_LOCAL_CONST8_SET", "OP_ADD_LOCAL_CONST8",
-  "OP_ADD_LOCAL_CONST8_RETURN", "OP_MUL_LOCAL_CONST8"]); /* slot + 1-byte const */
+  "OP_ADD_LOCAL_CONST8_RETURN", "OP_MUL_LOCAL_CONST8",
+  "OP_SUB_LOCAL_CONST8_SET"]); /* slot + 1-byte const */
 const LOCAL_PROP_OPS = new Set(["OP_GET_LOCAL_PROPERTY",
   "OP_RETURN_LOCAL_PROPERTY"]); /* slot + 2-byte const */
 const BYTE_OPS = new Set(["OP_GET_LOCAL", "OP_SET_LOCAL", "OP_GET_UPVALUE",
   "OP_SET_UPVALUE", "OP_CALL", "OP_SET_LOCAL_POP", "OP_RETURN_LOCAL"]);
 const JUMP_FWD = new Set(["OP_JUMP", "OP_JUMP_IF_FALSE", "OP_POP_JUMP_IF_FALSE",
   "OP_LESS_JUMP", "OP_GREATER_JUMP"]);
-const LC8J_OPS = new Set(["OP_LESS_LOCAL_CONST8_JUMP"]); /* slot + const + fwd jump */
+const LC8J_OPS = new Set(["OP_LESS_LOCAL_CONST8_JUMP",
+  "OP_GREATER_LOCAL_CONST8_JUMP"]); /* slot + const + fwd jump */
 const LC8L_OPS = new Set(["OP_ADD_LOCAL_CONST8_SET_LOOP",
   "OP_LESS_LOCAL_CONST8_LOOP"]); /* slot + const + back jump */
 const LC8L2_OPS = new Set(["OP_ADD_LOCAL_CONST8_SET_LESS_LOOP"]);
