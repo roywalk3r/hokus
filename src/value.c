@@ -68,10 +68,18 @@ void objectsInit(void) {
     hkGcCollections = 0;
     hkActiveVM = NULL;
     initTable(&hkStrings);
+#ifdef HK_WASM
+    /* wasm runs on a bump arena rewound between initVM() calls: HK_FREE-ing a
+       stale arena pointer would corrupt the free list (the rewind already
+       reclaimed it), but the bookkeeping must still reset or hkGlobalSlot
+       reads detached pointers next round. */
     initTable(&hkGlobalNames);
     hkGlobalNameList = NULL;
     hkGlobalCap = 0;
     hkGlobalCount = 0;
+#else
+    hkGlobalsFree();
+#endif
 }
 
 static uint32_t hashString(const char *key, int length) {
@@ -107,9 +115,19 @@ int hkGlobalSlot(ObjString *name) {
             (size_t)hkGlobalCap * sizeof(ObjString *));
     }
     hkGlobalNameList[slot] = name;
-    tableSet(&hkGlobalNames, name, NUMBER_VAL((double)slot));
+    /* mark valid before tableSet: if a future allocation path ever collects
+       mid-slot-assign, slot < hkGlobalCount already covers this entry */
     hkGlobalCount++;
+    tableSet(&hkGlobalNames, name, NUMBER_VAL((double)slot));
     return slot;
+}
+
+void hkGlobalsFree(void) {
+    freeTable(&hkGlobalNames);
+    HK_FREE(hkGlobalNameList, (size_t)hkGlobalCap * sizeof(ObjString *));
+    hkGlobalNameList = NULL;
+    hkGlobalCap = 0;
+    hkGlobalCount = 0;
 }
 
 static ObjString *allocateString(char *chars, int length, uint32_t hash) {
