@@ -316,7 +316,15 @@ and appears in the README or the playground.
   noise, trending clean in the newer sessions. New trendline case
   "1M while (global counter)". The remaining half of the global gap is the
   missed fusions — now structurally reachable since a global is an integer
-  operand like a local.
+  operand like a local. Post-ship architect review (approved with findings)
+  landed three hardening fixes: `slot >= hkGlobalCount` guards the
+  name-table read in the undefined-variable paths and the disassembler
+  (a crafted .hki could read OOB there), `hkGlobalCount++` moved before
+  tableSet so the slot is valid during any future mid-assign collection, and
+  hkGlobalsFree (declared, previously dead) now reclaimed in objectsInit.
+  Known behavior change, deliberate: `var clock = 1;` at the REPL no longer
+  gets reset to the native on the next line — the old tableSet clobbered it
+  unconditionally.
 
 ## Next (in order)
 
