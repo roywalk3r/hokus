@@ -57,6 +57,7 @@ struct Compiler {
     int scopeDepth;
     int numConstStart; /* byte offset of latest OP_CONSTANT push, -1 if none */
     int localGetStart; /* byte offset of latest OP_GET_LOCAL push, -1 if none */
+    int globalGetStart; /* byte offset of latest OP_GET_GLOBAL push, -1 if none */
     int setStmtStart; /* byte offset of latest SET_LOCAL/GLOBAL, -1 if none */
     int propSetStart; /* byte offset of latest OP_SET_PROPERTY, -1 if none */
     int propSetRecvStart; /* receiver GET_LOCAL of that property store, -1 */
@@ -254,6 +255,7 @@ static void initCompiler(Compiler *compiler, Compiler *enclosing,
     compiler->scopeDepth = 0;
     compiler->numConstStart = -1;
     compiler->localGetStart = -1;
+    compiler->globalGetStart = -1;
     compiler->setStmtStart = -1;
     compiler->propSetStart = -1;
     compiler->propSetRecvStart = -1;
@@ -671,8 +673,10 @@ static void namedVariable(Parser *p, Token name, bool canAssign) {
             emitBytes(p, setOp, (uint8_t)arg);
         }
     } else {
-        if (getOp == OP_GET_GLOBAL) emitConstRef(p, getOp, arg);
-        else {
+        if (getOp == OP_GET_GLOBAL) {
+            current->globalGetStart = currentChunk()->count; /* fuse-mark */
+            emitConstRef(p, getOp, arg);
+        } else {
             if (getOp == OP_GET_LOCAL)
                 current->localGetStart = currentChunk()->count; /* fuse-mark */
             emitBytes(p, getOp, (uint8_t)arg);
@@ -1157,6 +1161,44 @@ static void emitExprPop(Parser *p) {
         return;
     }
     if (mark >= 0 && mark == n - 3 && ch->code[mark] == OP_SET_GLOBAL) {
+        /* `g = g + k` (k a const): GET_GLOBAL; CONSTANT8; ADD; SET_GLOBAL on
+           the same slot — GET and CONSTANT8 instruction starts both
+           mark-verified, slot equality by the 16-bit operands */
+        int gm = current->globalGetStart, cm2 = current->numConstStart;
+        if (n >= 9 && current->andOrTarget <= n - 9 &&
+            gm == n - 9 && cm2 == n - 6 &&
+            ch->code[gm] == OP_GET_GLOBAL && ch->code[cm2] == OP_CONSTANT8 &&
+            ch->code[n - 4] == OP_ADD &&
+            ch->code[gm + 1] == ch->code[n - 2] && /* same slot, hi+lo */
+            ch->code[gm + 2] == ch->code[n - 1] &&
+            IS_NUMBER(ch->constants.values[ch->code[cm2 + 1]])) {
+            uint8_t slh = ch->code[n - 2], sll = ch->code[n - 1];
+            uint8_t cidx = ch->code[n - 5];
+            ch->count = n - 9;
+            current->incSetStart = ch->count; /* fuse-mark */
+            emitByte(p, OP_ADD_GLOBAL_CONST8_SET);
+            emitByte(p, slh);
+            emitByte(p, sll);
+            emitByte(p, cidx);
+            return;
+        }
+        /* `g = g1 + g2` statement: the whole 10-byte tail verified
+           geometrically from the mark-verified SET_GLOBAL end (same style as
+           the ADD_LOCAL_LOCAL pairing, which pins neither GET by mark) */
+        if (n >= 10 && current->andOrTarget <= n - 10 &&
+            ch->code[n - 10] == OP_GET_GLOBAL &&
+            ch->code[n - 7] == OP_GET_GLOBAL &&
+            ch->code[n - 4] == OP_ADD) {
+            uint8_t dh = ch->code[n - 2], dl = ch->code[n - 1];
+            uint8_t ah = ch->code[n - 9], al = ch->code[n - 8];
+            uint8_t bh = ch->code[n - 6], bl = ch->code[n - 5];
+            ch->count = n - 10;
+            emitByte(p, OP_ADD_GLOBAL_GLOBAL_SET);
+            emitByte(p, dh); emitByte(p, dl);
+            emitByte(p, ah); emitByte(p, al);
+            emitByte(p, bh); emitByte(p, bl);
+            return;
+        }
         uint8_t hi = ch->code[n - 2], lo = ch->code[n - 1];
         ch->count = n - 3;
         emitByte(p, OP_SET_GLOBAL_POP);
@@ -1240,6 +1282,27 @@ static int emitCondJump(Parser *p) {
             emitByte(p, 0xff);
             return off;
         }
+        /* global condition: GET_GLOBAL; CONSTANT8; LESS/GREATER — the
+           16-bit-slot sibling of the local arm above */
+        int gm = current->globalGetStart;
+        if (current->andOrTarget <= last - 5 &&
+            gm == last - 5 && cm == last - 2 &&
+            ch->code[gm] == OP_GET_GLOBAL && ch->code[cm] == OP_CONSTANT8 &&
+            IS_NUMBER(ch->constants.values[ch->code[cm + 1]])) {
+            uint8_t slh = ch->code[gm + 1], sll = ch->code[gm + 2];
+            uint8_t cidx = ch->code[cm + 1];
+            ch->count -= 6; /* rewind the 6-byte pattern */
+            int off = ch->count + 4; /* jump operand follows op+slot16+cidx */
+            emitByte(p, ch->code[last] == OP_LESS
+                         ? OP_LESS_GLOBAL_CONST8_JUMP
+                         : OP_GREATER_GLOBAL_CONST8_JUMP);
+            emitByte(p, slh);
+            emitByte(p, sll);
+            emitByte(p, cidx);
+            emitByte(p, 0xff);
+            emitByte(p, 0xff);
+            return off;
+        }
         uint8_t fused = ch->code[last] == OP_LESS ? OP_LESS_JUMP
                                                   : OP_GREATER_JUMP;
         ch->count = last; /* rewind 1-byte comparison; code+lines go together */
@@ -1311,6 +1374,32 @@ static void whileStatement(Parser *p) {
         emitByte(p, icidx);
         emitByte(p, ccidx);
         int off = ch->count - (loopStart + 5) + 2; /* emitLoop convention */
+        if (off > UINT16_MAX) error(p, "Loop body too large.");
+        emitByte(p, (off >> 8) & 0xff);
+        emitByte(p, off & 0xff);
+        patchJump(p, exitJump);
+        return;
+    }
+    /* global-counter while: entry cond is the 6-byte G_C8_JUMP (operand at
+       +4), trailing `g = g + k` folds with the back-edge into the 7-byte
+       mega. No POP-slide — a body-scoped POP run just skips the fusion */
+    if (exitJump >= 4 && exitJump - 4 == loopStart &&
+        ch->code[loopStart] == OP_LESS_GLOBAL_CONST8_JUMP &&
+        e - loopStart - 6 >= 4 &&
+        ch->code[e - 4] == OP_ADD_GLOBAL_CONST8_SET &&
+        ch->code[e - 3] == ch->code[loopStart + 1] && /* same slot, hi+lo */
+        ch->code[e - 2] == ch->code[loopStart + 2] &&
+        current->andOrTarget <= e - 4) {
+        uint8_t slh = ch->code[loopStart + 1], sll = ch->code[loopStart + 2];
+        uint8_t ccidx = ch->code[loopStart + 3];
+        uint8_t icidx = ch->code[e - 1];
+        ch->count = e - 4;
+        emitByte(p, OP_ADD_GLOBAL_CONST8_SET_LESS_LOOP);
+        emitByte(p, slh);
+        emitByte(p, sll);
+        emitByte(p, icidx);
+        emitByte(p, ccidx);
+        int off = ch->count - (loopStart + 6) + 2; /* emitLoop convention */
         if (off > UINT16_MAX) error(p, "Loop body too large.");
         emitByte(p, (off >> 8) & 0xff);
         emitByte(p, off & 0xff);

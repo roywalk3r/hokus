@@ -369,6 +369,11 @@ static InterpretResult run(VM *vm, int budget) {
         &&op_OP_RETURN_LOCAL_PROPERTY,
         &&op_OP_SUB_LOCAL_CONST8_SET,
         &&op_OP_GREATER_LOCAL_CONST8_JUMP,
+        &&op_OP_ADD_GLOBAL_CONST8_SET,
+        &&op_OP_LESS_GLOBAL_CONST8_JUMP,
+        &&op_OP_GREATER_GLOBAL_CONST8_JUMP,
+        &&op_OP_ADD_GLOBAL_GLOBAL_SET,
+        &&op_OP_ADD_GLOBAL_CONST8_SET_LESS_LOOP,
     };
     goto *jumpTable[READ_BYTE()];
 #endif
@@ -717,6 +722,112 @@ static InterpretResult run(VM *vm, int budget) {
                 }
                 double next = AS_NUMBER(a) + AS_NUMBER(inc);
                 FRAME_SLOTS[slot] = NUMBER_VAL(next);
+                if (next < AS_NUMBER(lim)) frame->ip -= offset;
+                continue;
+            }
+            /* global counterparts of the local fusion family (slot16
+               operands). Undefined stays a runtime error with the same text;
+               slot < hkGlobalCount guards the name-table read against crafted
+               images, exactly as the unfused GET/SET ops do */
+            op_OP_ADD_GLOBAL_CONST8_SET: {
+                uint16_t slot = READ_SHORT();
+                Value b = frame->consts[READ_BYTE()];
+                if (slot >= hkGlobalCount || slot >= vm->gslotsCount ||
+                    IS_EMPTY(vm->gslots[slot])) {
+                    undefinedVarError(vm, hkGlobalNameList[slot]);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                Value a = vm->gslots[slot];
+                if (!IS_NUMBER(a)) {
+                    runtimeError(vm, "Operands must be numbers.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                vm->gslots[slot] = NUMBER_VAL(AS_NUMBER(a) + AS_NUMBER(b));
+                continue;
+            }
+            op_OP_LESS_GLOBAL_CONST8_JUMP: {
+                uint16_t slot = READ_SHORT();
+                Value b = frame->consts[READ_BYTE()];
+                uint16_t offset = READ_SHORT();
+                if (slot >= hkGlobalCount || slot >= vm->gslotsCount ||
+                    IS_EMPTY(vm->gslots[slot])) {
+                    undefinedVarError(vm, hkGlobalNameList[slot]);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                Value a = vm->gslots[slot];
+                if (!IS_NUMBER(a)) {
+                    runtimeError(vm, "Operands must be numbers.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                if (!(AS_NUMBER(a) < AS_NUMBER(b))) frame->ip += offset;
+                continue;
+            }
+            op_OP_GREATER_GLOBAL_CONST8_JUMP: {
+                uint16_t slot = READ_SHORT();
+                Value b = frame->consts[READ_BYTE()];
+                uint16_t offset = READ_SHORT();
+                if (slot >= hkGlobalCount || slot >= vm->gslotsCount ||
+                    IS_EMPTY(vm->gslots[slot])) {
+                    undefinedVarError(vm, hkGlobalNameList[slot]);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                Value a = vm->gslots[slot];
+                if (!IS_NUMBER(a)) {
+                    runtimeError(vm, "Operands must be numbers.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                if (!(AS_NUMBER(a) > AS_NUMBER(b))) frame->ip += offset;
+                continue;
+            }
+            /* `g = g1 + g2` statement: sources are read left-to-right (the
+               undefined-error order matches the unfused GET_GLOBAL pair);
+               strings concatenate through OP_ADD's own path */
+            op_OP_ADD_GLOBAL_GLOBAL_SET: {
+                uint16_t dst = READ_SHORT();
+                uint16_t s1 = READ_SHORT(), s2 = READ_SHORT();
+                if (s1 >= hkGlobalCount || s1 >= vm->gslotsCount ||
+                    IS_EMPTY(vm->gslots[s1])) {
+                    undefinedVarError(vm, hkGlobalNameList[s1]);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                if (s2 >= hkGlobalCount || s2 >= vm->gslotsCount ||
+                    IS_EMPTY(vm->gslots[s2])) {
+                    undefinedVarError(vm, hkGlobalNameList[s2]);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                Value a = vm->gslots[s1], b = vm->gslots[s2];
+                if (IS_STRING(a) && IS_STRING(b)) {
+                    push(vm, a); push(vm, b);
+                    concatenate(vm);
+                    vm->gslots[dst] = pop(vm);
+                } else if (IS_NUMBER(a) && IS_NUMBER(b)) {
+                    vm->gslots[dst] = NUMBER_VAL(AS_NUMBER(a) + AS_NUMBER(b));
+                } else {
+                    runtimeError(vm, "Operands must be two numbers or two strings.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                continue;
+            }
+            /* while (g < lim) mega: g += inc, loop back when the incremented
+               value still satisfies the fused entry condition — the global
+               form of OP_ADD_LOCAL_CONST8_SET_LESS_LOOP */
+            op_OP_ADD_GLOBAL_CONST8_SET_LESS_LOOP: {
+                uint16_t slot = READ_SHORT();
+                Value inc = frame->consts[READ_BYTE()];
+                Value lim = frame->consts[READ_BYTE()];
+                uint16_t offset = READ_SHORT();
+                if (slot >= hkGlobalCount || slot >= vm->gslotsCount ||
+                    IS_EMPTY(vm->gslots[slot])) {
+                    undefinedVarError(vm, hkGlobalNameList[slot]);
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                Value a = vm->gslots[slot];
+                if (!IS_NUMBER(a)) {
+                    runtimeError(vm, "Operands must be numbers.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                double next = AS_NUMBER(a) + AS_NUMBER(inc);
+                vm->gslots[slot] = NUMBER_VAL(next);
                 if (next < AS_NUMBER(lim)) frame->ip -= offset;
                 continue;
             }

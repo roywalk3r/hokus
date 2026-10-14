@@ -32,6 +32,9 @@ const OPS = [
   "OP_ADD_LOCAL_PROPERTY_CONST8_SET",
   "OP_RETURN_LOCAL_PROPERTY",
   "OP_SUB_LOCAL_CONST8_SET", "OP_GREATER_LOCAL_CONST8_JUMP",
+  "OP_ADD_GLOBAL_CONST8_SET", "OP_LESS_GLOBAL_CONST8_JUMP",
+  "OP_GREATER_GLOBAL_CONST8_JUMP", "OP_ADD_GLOBAL_GLOBAL_SET",
+  "OP_ADD_GLOBAL_CONST8_SET_LESS_LOOP",
 ];
 const OPC = Object.fromEntries(OPS.map((n, i) => [n, i]));
 const CONST_OPS = new Set(["OP_CONSTANT",
@@ -59,6 +62,14 @@ const LC8L_OPS = new Set(["OP_ADD_LOCAL_CONST8_SET_LOOP",
   "OP_LESS_LOCAL_CONST8_LOOP"]); /* slot + const + back jump */
 const LC8L2_OPS = new Set(["OP_ADD_LOCAL_CONST8_SET_LESS_LOOP"]);
   /* slot + inc const + cond const + back jump */
+const GC8S_OPS = new Set(["OP_ADD_GLOBAL_CONST8_SET"]);
+  /* slot16 + const8; name text display-only */
+const GC8J_OPS = new Set(["OP_LESS_GLOBAL_CONST8_JUMP",
+  "OP_GREATER_GLOBAL_CONST8_JUMP"]); /* slot16 + const8 + fwd jump */
+const GGGS_OPS = new Set(["OP_ADD_GLOBAL_GLOBAL_SET"]);
+  /* dst16 + src16 + src16; names display-only */
+const GMEGA_OPS = new Set(["OP_ADD_GLOBAL_CONST8_SET_LESS_LOOP"]);
+  /* slot16 + inc const + cond const + back jump */
 const LOC2_OPS = new Set(["OP_ADD_LOCAL_LOCAL"]);       /* slot + slot */
 const LOC3_OPS = new Set(["OP_ADD_LOCAL_LOCAL_SET", "OP_MUL_LOCAL_CONST8_SET"]);   /* dst + src + src */
 const LOCAL_PROP_C8_OPS = new Set(["OP_ADD_LOCAL_PROPERTY_CONST8_SET"]);
@@ -151,6 +162,37 @@ function assemble(listing) {
             code.push(u[1] === "local" ? 1 : 0, Number(u[2]));
           }
         }
+      } else if (GC8S_OPS.has(op)) {
+        const c = operand.match(/^(\d+) \S+ (\d+) (.*)$/);
+        const idx = Number(c[2]);
+        needConst(idx);
+        consts[idx] = parseValue(c[3]);
+        const slot = Number(c[1]);
+        code.push(slot >> 8, slot & 0xff, idx & 0xff);
+      } else if (GC8J_OPS.has(op)) {
+        const c = operand.match(/^(\d+) \S+ (\d+) (.*) \| (\d+) -> (\d+)$/);
+        const idx = Number(c[2]);
+        needConst(idx);
+        consts[idx] = parseValue(c[3]);
+        const slot = Number(c[1]);
+        const jump = Number(c[5]) - (offset + 6);
+        code.push(slot >> 8, slot & 0xff, idx & 0xff, jump >> 8, jump & 0xff);
+      } else if (GGGS_OPS.has(op)) {
+        const c = operand.match(/^(\d+) \S+ (\d+) \S+ (\d+) \S+$/);
+        for (const t of [c[1], c[2], c[3]]) {
+          const slot = Number(t);
+          code.push(slot >> 8, slot & 0xff);
+        }
+      } else if (GMEGA_OPS.has(op)) {
+        const c = operand.match(/^(\d+) \S+ (\d+) (\S+) (\d+) (\S+) \| (\d+) -> (\d+)$/);
+        const idx1 = Number(c[2]), idx2 = Number(c[4]);
+        needConst(idx1); needConst(idx2);
+        consts[idx1] = parseValue(c[3]);
+        consts[idx2] = parseValue(c[5]);
+        const slot = Number(c[1]);
+        const jump = (offset + 7) - Number(c[7]);
+        code.push(slot >> 8, slot & 0xff, idx1 & 0xff, idx2 & 0xff,
+                  jump >> 8, jump & 0xff);
       } else if (GLOBAL_SLOT_OPS.has(op)) {
         const c = operand.match(/^(\d+) (.*)$/);
         const slot = Number(c[1]);

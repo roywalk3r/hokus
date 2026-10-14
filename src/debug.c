@@ -263,6 +263,87 @@ static int globalSlotInstruction(const char *name, Chunk *chunk, int offset) {
     return offset + 3;
 }
 
+static void emitGlobalSlot(uint16_t slot) {
+    emitInt(slot);
+    if (slot < hkGlobalCount) {
+        emit(" ");
+        emitValueBrief(OBJ_VAL(hkGlobalNameList[slot]));
+    }
+}
+
+/* fused `g = g + k` statement: slot16 + const8 */
+static int globalConst8SetInstruction(const char *name, Chunk *chunk, int offset) {
+    uint16_t slot = (uint16_t)((chunk->code[offset + 1] << 8) | chunk->code[offset + 2]);
+    uint8_t constant = chunk->code[offset + 3];
+    emitPadded(name, 16);
+    emitPadded("", 4);
+    emitGlobalSlot(slot);
+    emit(" ");
+    emitInt(constant);
+    emit(" ");
+    emitValueBrief(chunk->constants.values[constant]);
+    emit("\n");
+    return offset + 4;
+}
+
+/* fused `while/if (g <const> k)`: slot16 + const8 + fwd jump — 6 bytes */
+static int globalConst8JumpInstruction(const char *name, Chunk *chunk, int offset) {
+    uint16_t slot = (uint16_t)((chunk->code[offset + 1] << 8) | chunk->code[offset + 2]);
+    uint8_t constant = chunk->code[offset + 3];
+    uint16_t jump = (uint16_t)((chunk->code[offset + 4] << 8) | chunk->code[offset + 5]);
+    emitPadded(name, 16);
+    emitPadded("", 4);
+    emitGlobalSlot(slot);
+    emit(" ");
+    emitInt(constant);
+    emit(" ");
+    emitValueBrief(chunk->constants.values[constant]);
+    emit(" | ");
+    emitInt(offset);
+    emit(" -> ");
+    emitInt(offset + 6 + jump);
+    emit("\n");
+    return offset + 6;
+}
+
+/* fused `g = g1 + g2` statement: dst16 + src16 + src16 */
+static int globalGlobalSetInstruction(const char *name, Chunk *chunk, int offset) {
+    emitPadded(name, 16);
+    emitPadded("", 4);
+    for (int i = 1; i <= 5; i += 2) {
+        uint16_t slot = (uint16_t)((chunk->code[offset + i] << 8) | chunk->code[offset + i + 1]);
+        emitGlobalSlot(slot);
+        if (i < 5) emit(" ");
+    }
+    emit("\n");
+    return offset + 7;
+}
+
+/* global-counter while mega: slot16 + inc8 + lim8 + back jump — 7 bytes */
+static int globalMegaLoopInstruction(const char *name, Chunk *chunk, int offset) {
+    uint16_t slot = (uint16_t)((chunk->code[offset + 1] << 8) | chunk->code[offset + 2]);
+    uint8_t c1 = chunk->code[offset + 3];
+    uint8_t c2 = chunk->code[offset + 4];
+    uint16_t jump = (uint16_t)((chunk->code[offset + 5] << 8) | chunk->code[offset + 6]);
+    emitPadded(name, 16);
+    emitPadded("", 4);
+    emitGlobalSlot(slot);
+    emit(" ");
+    emitInt(c1);
+    emit(" ");
+    emitValueBrief(chunk->constants.values[c1]);
+    emit(" ");
+    emitInt(c2);
+    emit(" ");
+    emitValueBrief(chunk->constants.values[c2]);
+    emit(" | ");
+    emitInt(offset);
+    emit(" -> ");
+    emitInt(offset + 7 - jump);
+    emit("\n");
+    return offset + 7;
+}
+
 static int byteInstruction(const char *name, Chunk *chunk, int offset) {
     emitPadded(name, 16);
     emitPadded("", 4);
@@ -360,6 +441,17 @@ int disassembleInstruction(Chunk *chunk, int offset) {
             return localConst8Instruction("OP_SUB_LOCAL_CONST8_SET", chunk, offset);
         case OP_GREATER_LOCAL_CONST8_JUMP:
             return localConst8JumpInstruction("OP_GREATER_LOCAL_CONST8_JUMP", chunk, offset);
+        case OP_ADD_GLOBAL_CONST8_SET:
+            return globalConst8SetInstruction("OP_ADD_GLOBAL_CONST8_SET", chunk, offset);
+        case OP_LESS_GLOBAL_CONST8_JUMP:
+            return globalConst8JumpInstruction("OP_LESS_GLOBAL_CONST8_JUMP", chunk, offset);
+        case OP_GREATER_GLOBAL_CONST8_JUMP:
+            return globalConst8JumpInstruction("OP_GREATER_GLOBAL_CONST8_JUMP", chunk, offset);
+        case OP_ADD_GLOBAL_GLOBAL_SET:
+            return globalGlobalSetInstruction("OP_ADD_GLOBAL_GLOBAL_SET", chunk, offset);
+        case OP_ADD_GLOBAL_CONST8_SET_LESS_LOOP:
+            return globalMegaLoopInstruction("OP_ADD_GLOBAL_CONST8_SET_LESS_LOOP",
+                                             chunk, offset);
         case OP_ADD_LOCAL_PROPERTY_CONST8_SET:
             return localPropertyConst8Instruction("OP_ADD_LOCAL_PROPERTY_CONST8_SET", chunk, offset);
         case OP_RETURN_LOCAL_PROPERTY:
